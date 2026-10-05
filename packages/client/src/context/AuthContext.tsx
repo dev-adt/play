@@ -40,6 +40,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [stats, setStats] = useState<PlayerStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const formatUser = (u: any): User => ({
+    ...u,
+    isAdmin: !!(u?.isAdmin || u?.username?.toLowerCase() === 'admin'),
+  });
+
   const refreshStats = async () => {
     const activeToken = token || localStorage.getItem('tienlen_token');
     if (!activeToken) return;
@@ -50,7 +55,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       if (res.ok) {
         const data = await res.json();
-        setUser(data.user);
+        setUser(formatUser(data.user));
         setStats(data.stats);
       } else {
         logout();
@@ -70,7 +75,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .then(res => res.json())
         .then(data => {
           if (data.user) {
-            setUser(data.user);
+            setUser(formatUser(data.user));
             setStats(data.stats);
           } else {
             localStorage.removeItem('tienlen_token');
@@ -96,7 +101,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!res.ok) {
         return { success: false, error: data.error || 'Đăng nhập thất bại' };
       }
-      setUser(data.user);
+      setUser(formatUser(data.user));
       setToken(data.token);
       setStats(data.stats);
       localStorage.setItem('tienlen_token', data.token);
@@ -117,7 +122,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!res.ok) {
         return { success: false, error: data.error || 'Đăng ký thất bại' };
       }
-      setUser(data.user);
+      setUser(formatUser(data.user));
       setToken(data.token);
       setStats(data.stats);
       localStorage.setItem('tienlen_token', data.token);
@@ -138,7 +143,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!res.ok) {
         return { success: false, error: data.error || 'Chơi nhanh thất bại' };
       }
-      setUser(data.user);
+      setUser(formatUser(data.user));
       setToken(data.token);
       setStats(data.stats);
       localStorage.setItem('tienlen_token', data.token);

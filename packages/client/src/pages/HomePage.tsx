@@ -22,6 +22,8 @@ import { RoomBrowserModal } from '../components/RoomBrowserModal';
 import { JoinFriendModal } from '../components/JoinFriendModal';
 import { RulesModal } from '../components/RulesModal';
 import { HistoryModal } from '../components/HistoryModal';
+import { AdminModal } from '../components/AdminModal';
+import { ShieldCheck } from 'lucide-react';
 
 interface HomePageProps {
   onNavigateToRoom: (roomCode: string) => void;
@@ -35,9 +37,12 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToRoom }) => {
   const [showJoinFriend, setShowJoinFriend] = useState(false);
   const [showRules, setShowRules] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [quickJoining, setQuickJoining] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const isAdmin = !!(user?.isAdmin || user?.username?.toLowerCase() === 'admin');
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -164,10 +169,25 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToRoom }) => {
 
               {/* User Dropdown Menu */}
               {showUserMenu && (
-                <div className="absolute top-12 left-0 w-48 bg-[#1f1013] border-2 border-amber-500/50 rounded-2xl shadow-2xl p-2 z-50 text-xs space-y-1">
-                  <div className="p-2 border-b border-amber-500/20 text-amber-200 font-bold">
-                    Tài khoản: {user.username}
+                <div className="absolute top-12 left-0 w-52 bg-[#1f1013] border-2 border-amber-500/50 rounded-2xl shadow-2xl p-2 z-50 text-xs space-y-1">
+                  <div className="p-2 border-b border-amber-500/20 text-amber-200 font-bold flex items-center justify-between">
+                    <span>Tài khoản: {user.username}</span>
+                    {isAdmin && (
+                      <span className="text-[9px] bg-red-600 text-white font-black px-1.5 py-0.5 rounded">ADMIN</span>
+                    )}
                   </div>
+                  {isAdmin && (
+                    <button
+                      onClick={e => {
+                        e.stopPropagation();
+                        setShowUserMenu(false);
+                        setShowAdmin(true);
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-xl bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 font-bold flex items-center gap-2 transition border border-amber-500/40"
+                    >
+                      <ShieldCheck size={14} className="text-amber-400 stroke-[2.5]" /> Quản Trị Hệ Thống (Admin)
+                    </button>
+                  )}
                   <button
                     onClick={e => {
                       e.stopPropagation();
@@ -219,6 +239,18 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToRoom }) => {
 
         {/* Right: Action Buttons (Glossy Round Buttons) */}
         <div className="flex items-center gap-2">
+          {/* Admin Dashboard Button (Only for Admin) */}
+          {isAdmin && (
+            <button
+              onClick={() => setShowAdmin(true)}
+              className="h-9 px-3 rounded-full bg-gradient-to-r from-red-600 via-amber-500 to-yellow-500 border-2 border-yellow-200 text-slate-950 font-black flex items-center gap-1.5 shadow-xl active:scale-95 transition hover:brightness-110 animate-pulse cursor-pointer"
+              title="Bảng Quản Trị Hệ Thống (Admin)"
+            >
+              <ShieldCheck size={18} className="stroke-[3] text-slate-950" />
+              <span className="text-[11px] font-black uppercase tracking-wider hidden sm:inline">Quản Trị</span>
+            </button>
+          )}
+
           {/* Achievements / Trophy button */}
           <button
             onClick={() => setShowHistory(true)}
@@ -531,6 +563,9 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToRoom }) => {
           onOpenRegister={() => setShowAuth(true)}
         />
       )}
+
+      {/* Admin Dashboard Modal */}
+      {showAdmin && <AdminModal onClose={() => setShowAdmin(false)} />}
     </div>
   );
 };

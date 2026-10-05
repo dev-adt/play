@@ -228,6 +228,40 @@ export function createServer() {
     }
   });
 
+  app.get('/api/admin/users/:userId/history', authenticate, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const targetUserId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
+      if (!targetUserId) {
+        res.status(400).json({ error: 'Thiếu mã người dùng' });
+        return;
+      }
+      const targetUser = await db.getUserById(targetUserId);
+      if (!targetUser) {
+        res.status(404).json({ error: 'Không tìm thấy người chơi' });
+        return;
+      }
+      const mode = typeof req.query.mode === 'string' ? req.query.mode : undefined;
+      const limit = typeof req.query.limit === 'string' ? parseInt(req.query.limit, 10) : 50;
+      const history = await db.getPlayerGameHistory(targetUserId, limit, mode);
+      const stats = await db.getPlayerStats(targetUserId);
+      res.json({
+        user: {
+          id: targetUser.id,
+          username: targetUser.username,
+          displayName: targetUser.display_name,
+          createdAt: targetUser.created_at,
+          isGuest: targetUser.username.startsWith('guest_'),
+          isAdmin: targetUser.username.toLowerCase() === 'admin',
+        },
+        history,
+        stats,
+      });
+    } catch (err: any) {
+      console.error('Admin get user history error:', err);
+      res.status(500).json({ error: 'Không thể tải lịch sử đấu của tài khoản' });
+    }
+  });
+
   // --- STATS & HISTORY ---
   app.get('/api/history', authenticate, async (req: AuthenticatedRequest, res: Response) => {
     try {
