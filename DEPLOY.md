@@ -6,7 +6,7 @@ Tài liệu này hướng dẫn chi tiết từng bước để triển khai h�
 
 ## 1. Yêu cầu hệ thống trên VPS
 
-- **aaPanel** đang chạy (đã có Nginx và MySQL 8.0 như trong ảnh màn hình của bạn).
+- **aaPanel** đang chạy (đã có Nginx và MySQL 8.0).
 - **Docker & Docker Compose** (hoặc Node.js 20+).
 - Cổng **3027** còn trống trên VPS (đã cấu hình riêng để không đụng các dịch vụ 30xx khác).
 - Domain `play.edunow.today` đã trỏ bản ghi A về IP VPS.
@@ -15,13 +15,14 @@ Tài liệu này hướng dẫn chi tiết từng bước để triển khai h�
 
 ## 2. Bước chuẩn bị Database MySQL trên aaPanel
 
-Theo đúng ảnh màn hình cấu hình bạn đã tạo trên aaPanel:
-1. **DB Name:** `play_db`
-2. **Username:** `play_user`
-3. **Password:** `123456Happy`
-4. **Character Set:** `utf8mb4`
-5. **Cấp quyền truy cập (Permission) cho Docker:**
-   - Trong bảng danh sách **Databases** trên aaPanel, tìm dòng `play_db`.
+1. Vào giao diện **aaPanel** $\to$ mục **Databases** $\to$ bấm **Add DB**.
+2. Nhập thông tin:
+   - **DB Name:** (ví dụ: `play_db`)
+   - **Username:** (ví dụ: `play_user`)
+   - **Password:** (nhập mật khẩu an toàn của bạn)
+   - **Character Set:** `utf8mb4`
+3. **Cấp quyền truy cập (Permission) cho Docker:**
+   - Trong bảng danh sách **Databases** trên aaPanel, tìm dòng database vừa tạo.
    - Tại cột **Permission**, click vào `Local server` $\to$ đổi thành **`Everyone (%)`** (hoặc `172.%.%.%`) để cho phép container Docker kết nối vào MySQL của máy chủ host qua `host.docker.internal:3306`.
    - Bấm **Confirm**.
 
@@ -46,7 +47,12 @@ Sao chép từ file mẫu:
 cp .env.example .env
 ```
 
-Mở file `.env` bằng `nano .env` và kiểm tra:
+Sinh chuỗi bí mật an toàn ngẫu nhiên:
+```bash
+openssl rand -hex 32
+```
+
+Mở file `.env` bằng `nano .env` và điền thông tin của bạn:
 
 ```env
 NODE_ENV=production
@@ -57,14 +63,16 @@ APP_PORT=3027
 # Domain chính xác
 APP_ORIGIN=https://play.edunow.today
 
-# Khóa bí mật session (có thể tự sinh bằng: openssl rand -hex 32)
-SESSION_SECRET=cfa8120e791b8a920dfb9376662491108a70ef0d57187e8139d1b0ff423e2719
+# Khóa bí mật session (dán chuỗi bí mật vừa sinh từ lệnh openssl)
+SESSION_SECRET=<chuoi_bi_mat_ngau_nhien_32_bytes>
 
-# Chuỗi kết nối tới MySQL aaPanel
-DATABASE_URL=mysql://play_user:123456Happy@host.docker.internal:3306/play_db
+# Chuỗi kết nối tới MySQL aaPanel của bạn
+DATABASE_URL=mysql://<db_user>:<db_password>@host.docker.internal:3306/<db_name>
 
 TURN_TIMEOUT_SECONDS=30
 ```
+
+> **Lưu ý an toàn:** File `.env` chứa mật khẩu thực tế sẽ nằm trên VPS của bạn và đã được đưa vào `.gitignore` để không bao giờ bị lộ lên Git.
 
 ### Bước 3.3: Khởi chạy container
 
@@ -85,7 +93,7 @@ Kết quả trả về JSON dạng:
 ```json
 {"status":"ok","time":"...","service":"tienlen-server","domain":"https://play.edunow.today"}
 ```
-Hệ thống sẽ tự động khởi tạo toàn bộ bảng database (`users`, `rooms`, `games`, `game_events`, `score_ledger`, `game_results`, `player_mode_stats`) trong cơ sở dữ liệu `play_db`.
+Hệ thống sẽ tự động khởi tạo toàn bộ bảng database (`users`, `rooms`, `games`, `game_events`, `score_ledger`, `game_results`, `player_mode_stats`) trong database của bạn.
 
 ---
 
@@ -94,7 +102,7 @@ Hệ thống sẽ tự động khởi tạo toàn bộ bảng database (`users`,
 ### Bước 4.1: Thêm Website trên aaPanel
 1. Mở **aaPanel** $\to$ **Website** $\to$ **Add site**.
 2. Nhập Domain: `play.edunow.today`.
-3. Database: Không cần tạo (vì đã tạo `play_db` trước đó).
+3. Database: Không cần tạo (vì đã tạo trước đó).
 4. PHP version: Chọn **Pure static**.
 5. Bấm **Submit**.
 
@@ -128,7 +136,7 @@ location /socket.io/ {
     proxy_send_timeout 86400s;
 }
 
-# API và Frontend SPA
+# API và Frontend Web
 location / {
     proxy_pass http://127.0.0.1:3027;
     proxy_http_version 1.1;
@@ -158,7 +166,7 @@ docker compose exec app npm run admin:reset-password -- player1 MatKhauMoi@2026
 ### Sao lưu (Backup) Database:
 Bạn có thể dùng tính năng **Backup** có sẵn của aaPanel tại giao diện Databases, hoặc chạy lệnh:
 ```bash
-mysqldump -u play_user -p play_db > backup_play_db_$(date +%Y%m%d_%H%M%S).sql
+mysqldump -u <db_user> -p <db_name> > backup_play_db_$(date +%Y%m%d_%H%M%S).sql
 ```
 
 ### Cập nhật phiên bản mới:
@@ -167,4 +175,4 @@ cd /www/wwwroot/play.edunow.today
 git pull origin master
 docker compose up -d --build
 ```
-Dữ liệu nằm an toàn trong MySQL `play_db` trên aaPanel nên khi build lại container app sẽ không bao giờ bị mất tài khoản hay lịch sử ván đấu.
+Dữ liệu nằm an toàn trong MySQL trên aaPanel nên khi build lại container app sẽ không bao giờ bị mất tài khoản hay lịch sử ván đấu.

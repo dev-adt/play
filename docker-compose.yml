@@ -13,12 +13,10 @@ services:
       HOST: 0.0.0.0
       APP_PORT: 3027
       APP_ORIGIN: ${APP_ORIGIN:-https://play.edunow.today}
-      SESSION_SECRET: ${SESSION_SECRET:-changeme_super_secret_session_jwt_key_2026}
-      # Kết nối tới MySQL trên aaPanel (host.docker.internal:3306)
-      DATABASE_URL: ${DATABASE_URL:-mysql://play_user:123456Happy@host.docker.internal:3306/play_db}
+      SESSION_SECRET: ${SESSION_SECRET}
+      DATABASE_URL: ${DATABASE_URL}
       CLIENT_DIST_PATH: /app/packages/client/dist
     ports:
-      # Ánh xạ ra cổng 3027 trên VPS (tránh trùng các cổng 30xx khác)
       - "127.0.0.1:3027:3027"
     healthcheck:
       test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3027/api/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))\""]
