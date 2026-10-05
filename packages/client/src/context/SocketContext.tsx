@@ -90,6 +90,9 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [roomChats, setRoomChats] = useState<RoomChatMessage[]>([]);
   const prevTurnRef = useRef<number | null>(null);
   const prevPhaseRef = useRef<string | null>(null);
+  const prevGameIdRef = useRef<string | null>(null);
+  const lastPlayTimestampRef = useRef<number>(0);
+  const isInitialRoomStateRef = useRef<boolean>(true);
   const currentRoomCodeRef = useRef<string | null>(null);
   const currentRoomPasswordRef = useRef<string | undefined>(undefined);
   const pendingJoinCallbacksRef = useRef<Array<(res: any) => void>>([]);
@@ -131,31 +134,67 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     s.on('disconnect', () => {
       setIsConnected(false);
+      isInitialRoomStateRef.current = true;
     });
 
     s.on('room_state', (view: RoomClientView) => {
       // Sound triggers based on state differences
       if (view.gameState) {
         const gs = view.gameState;
-        // Game just started
-        if (prevPhaseRef.current !== 'playing' && gs.phase === 'playing') {
-          sounds.playDeal();
+        const isInitial = isInitialRoomStateRef.current;
+        isInitialRoomStateRef.current = false;
+
+        const latestPlay = gs.recentPlays && gs.recentPlays.length > 0
+          ? gs.recentPlays[gs.recentPlays.length - 1]
+          : null;
+
+        if (!isInitial) {
+          // 1. Game Start: dealing & fanfare sound
+          const isGameStart =
+            (prevPhaseRef.current !== 'playing' || prevGameIdRef.current !== gs.gameId) &&
+            gs.phase === 'playing';
+
+          if (isGameStart) {
+            sounds.playGameStart();
+          }
+
+          // 2. Play card / Chop sound when someone plays onto the table
+          if (latestPlay && latestPlay.playedAt && latestPlay.playedAt !== lastPlayTimestampRef.current) {
+            if (latestPlay.playerId !== user?.userId) {
+              // Opponent play
+              if (latestPlay.isChop) {
+                sounds.playChop();
+              } else {
+                sounds.playCard();
+              }
+            } else if (latestPlay.isChop) {
+              // User's own chop
+              sounds.playChop();
+            }
+          }
+
+          // 3. Turn changed to me alert tick
+          const mySeat = view.mySeatIndex;
+          if (mySeat !== -1 && gs.currentTurnSeat === mySeat && prevTurnRef.current !== mySeat) {
+            sounds.playTick();
+          }
         }
-        // Game ended
-        if (prevPhaseRef.current === 'playing' && gs.phase === 'ended') {
-          sounds.playWin();
-        }
-        // Turn changed to me
-        const mySeat = view.mySeatIndex;
-        if (mySeat !== -1 && gs.currentTurnSeat === mySeat && prevTurnRef.current !== mySeat) {
-          sounds.playTick();
+
+        if (latestPlay?.playedAt) {
+          lastPlayTimestampRef.current = latestPlay.playedAt;
+        } else if (gs.phase !== 'playing') {
+          lastPlayTimestampRef.current = 0;
         }
 
         prevPhaseRef.current = gs.phase;
         prevTurnRef.current = gs.currentTurnSeat;
+        prevGameIdRef.current = gs.gameId;
       } else {
         prevPhaseRef.current = null;
         prevTurnRef.current = null;
+        prevGameIdRef.current = null;
+        lastPlayTimestampRef.current = 0;
+        isInitialRoomStateRef.current = false;
       }
 
       if (view.recentChats && view.recentChats.length > 0) {

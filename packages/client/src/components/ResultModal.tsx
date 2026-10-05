@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import confetti from 'canvas-confetti';
 import { Trophy, Award, RotateCcw, AlertOctagon, Flame } from 'lucide-react';
+import { sounds } from '../audio';
 
 interface ResultModalProps {
   result: {
@@ -40,14 +41,21 @@ export const ResultModal: React.FC<ResultModalProps> = ({
   }, [autoStartTime]);
 
   useEffect(() => {
+    const isPlayerInGame = players.some(p => p.id === myUserId);
     if (isWinner) {
       confetti({
         particleCount: 100,
         spread: 70,
         origin: { y: 0.6 },
       });
+      sounds.playWin();
+    } else if (isPlayerInGame) {
+      sounds.playLose();
+    } else {
+      // Spectator
+      sounds.playWin();
     }
-  }, [isWinner]);
+  }, [isWinner, myUserId]);
 
   return (
     <div className="modal-overlay">
