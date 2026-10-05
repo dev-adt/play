@@ -198,6 +198,27 @@ export function setupSocketServer(io: Server) {
       if (callback) callback(res);
     });
 
+    // In-room chat
+    socket.on('send_room_chat', async (data: { roomCode: string; text: string }, callback?: (res: any) => void) => {
+      const room = await roomManager.getOrLoadRoomByCode(data.roomCode);
+      if (!room) {
+        if (callback) callback({ success: false, error: 'Phòng không tồn tại' });
+        return;
+      }
+
+      const msg = room.addChatMessage(
+        { id: user.userId, displayName: user.displayName },
+        data.text
+      );
+
+      if (msg) {
+        io.to(`room:${room.code}`).emit('room_chat_message', msg);
+        if (callback) callback({ success: true, message: msg });
+      } else {
+        if (callback) callback({ success: false, error: 'Nội dung tin nhắn không hợp lệ' });
+      }
+    });
+
     // Handle disconnect
     socket.on('disconnect', () => {
       const found = roomManager.findRoomBySocketId(socket.id);

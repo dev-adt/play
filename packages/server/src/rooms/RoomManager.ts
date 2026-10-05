@@ -15,6 +15,16 @@ export interface RoomMember {
   offlineSince?: number | null;
 }
 
+export interface RoomChatMessage {
+  id: string;
+  senderId: string;
+  senderName: string;
+  senderSeatIndex: number;
+  text: string;
+  createdAt: number;
+  isSystem?: boolean;
+}
+
 export interface RoomClientView {
   id: string;
   code: string;
@@ -28,6 +38,7 @@ export interface RoomClientView {
   seats: (RoomMember | null)[];
   nextGameAutoStartTime?: number | null;
   gameState?: GameStateClientView;
+  recentChats?: RoomChatMessage[];
 }
 
 export class Room {
@@ -45,6 +56,7 @@ export class Room {
   public nextGameAutoStartTimer: NodeJS.Timeout | null = null;
   public nextGameAutoStartTime: number | null = null;
   public disconnectTimers = new Map<string, NodeJS.Timeout>();
+  public recentChats: RoomChatMessage[] = [];
 
   private broadcastFn: (room: Room) => void;
 
@@ -442,7 +454,36 @@ export class Room {
       seats: this.seats,
       nextGameAutoStartTime: this.nextGameAutoStartTime,
       gameState: this.activeGame ? this.activeGame.getClientView(userId) : undefined,
+      recentChats: this.recentChats,
     };
+  }
+
+  public addChatMessage(
+    sender: { id: string; displayName: string },
+    text: string,
+    isSystem = false
+  ): RoomChatMessage | null {
+    const cleanText = text.trim().slice(0, 200);
+    if (!cleanText) return null;
+
+    const member = this.getMemberByUserId(sender.id);
+    const seatIdx = member ? member.seatIndex : -1;
+
+    const msg: RoomChatMessage = {
+      id: `${this.id}-msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      senderId: sender.id,
+      senderName: sender.displayName,
+      senderSeatIndex: seatIdx,
+      text: cleanText,
+      createdAt: Date.now(),
+      isSystem,
+    };
+
+    this.recentChats.push(msg);
+    if (this.recentChats.length > 50) {
+      this.recentChats.shift();
+    }
+    return msg;
   }
 }
 

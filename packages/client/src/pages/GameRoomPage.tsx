@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSocket } from '../context/SocketContext';
 import { useAuth } from '../context/AuthContext';
 import { Card, Combination, identifyCombination, canBeat, sortCards } from '@tienlen/shared';
@@ -22,9 +22,11 @@ import {
   Wifi,
   Sparkles,
   Trophy,
+  MessageSquare,
 } from 'lucide-react';
 import { RulesModal } from '../components/RulesModal';
 import { HistoryModal } from '../components/HistoryModal';
+import { RoomChatModal } from '../components/RoomChatModal';
 
 interface GameRoomPageProps {
   roomCode: string;
@@ -34,6 +36,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
   const { user } = useAuth();
   const {
     roomState,
+    roomChats,
     takeSeat,
     leaveSeat,
     toggleReady,
@@ -49,7 +52,51 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
   const [copied, setCopied] = useState(false);
   const [showRules, setShowRules] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showChat, setShowChat] = useState(false);
+  const [lastReadChatCount, setLastReadChatCount] = useState(0);
+  const [chatBubbles, setChatBubbles] = useState<Record<string, { text: string; expiresAt: number }>>({});
   const [isMuted, setIsMuted] = useState(sounds.isMuted);
+
+  const unreadChatCount = showChat ? 0 : Math.max(0, roomChats.length - lastReadChatCount);
+
+  const handleOpenChat = () => {
+    setShowChat(true);
+    setLastReadChatCount(roomChats.length);
+  };
+
+  // Sync floating chat bubbles when new messages arrive
+  useEffect(() => {
+    if (roomChats.length === 0) return;
+    const lastMsg = roomChats[roomChats.length - 1];
+    if (Date.now() - lastMsg.createdAt < 6000) {
+      setChatBubbles(prev => ({
+        ...prev,
+        [lastMsg.senderId]: { text: lastMsg.text, expiresAt: Date.now() + 5000 },
+      }));
+    }
+    if (showChat) {
+      setLastReadChatCount(roomChats.length);
+    }
+  }, [roomChats, showChat]);
+
+  // Periodically clear expired chat speech bubbles
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = Date.now();
+      setChatBubbles(prev => {
+        let changed = false;
+        const updated = { ...prev };
+        for (const [uid, b] of Object.entries(updated)) {
+          if (b.expiresAt <= now) {
+            delete updated[uid];
+            changed = true;
+          }
+        }
+        return changed ? updated : prev;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const handleToggleSound = () => {
     setIsMuted(sounds.toggleMute());
@@ -334,8 +381,22 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
           </div>
         </div>
 
-        {/* Top Right: Sound & Share Invite */}
+        {/* Top Right: Chat, Sound & Share Invite */}
         <div className="flex items-center gap-2">
+          {/* Chat button with unread badge */}
+          <button
+            onClick={handleOpenChat}
+            className="w-8 h-8 rounded-full bg-black/60 border border-slate-700 hover:border-amber-400 text-amber-300 flex items-center justify-center transition relative"
+            title="Khung chat bàn chơi"
+          >
+            <MessageSquare size={16} />
+            {unreadChatCount > 0 && (
+              <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-600 text-white text-[9px] font-black flex items-center justify-center border border-white shadow animate-pulse">
+                {unreadChatCount > 9 ? '9+' : unreadChatCount}
+              </div>
+            )}
+          </button>
+
           {/* Copy link button */}
           <button
             onClick={handleCopyLink}
@@ -373,6 +434,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
                 onTakeSeat={takeSeat}
                 canKick={!!isOwner && topPlayer !== null && topPlayer.id !== user?.userId}
                 onKick={kickPlayer}
+                chatBubbleText={topPlayer ? chatBubbles[topPlayer.id]?.text : null}
               />
             </div>
           )}
@@ -391,6 +453,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
                 onTakeSeat={takeSeat}
                 canKick={!!isOwner && leftPlayer !== null && leftPlayer.id !== user?.userId}
                 onKick={kickPlayer}
+                chatBubbleText={leftPlayer ? chatBubbles[leftPlayer.id]?.text : null}
               />
             </div>
           )}
@@ -447,6 +510,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
                 onTakeSeat={takeSeat}
                 canKick={!!isOwner && rightPlayer !== null && rightPlayer.id !== user?.userId}
                 onKick={kickPlayer}
+                chatBubbleText={rightPlayer ? chatBubbles[rightPlayer.id]?.text : null}
               />
             </div>
           )}
@@ -466,6 +530,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
             position="bottom"
             isLobby={!isGameActive}
             onTakeSeat={takeSeat}
+            chatBubbleText={bottomPlayer ? chatBubbles[bottomPlayer.id]?.text : null}
           />
         </div>
 
@@ -546,6 +611,9 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
 
       {/* Achievements & History Modal */}
       {showHistory && <HistoryModal onClose={() => setShowHistory(false)} />}
+
+      {/* Room Chat Drawer / Modal */}
+      {showChat && <RoomChatModal onClose={() => setShowChat(false)} />}
 
       {/* Result Modal when game ends */}
       {gameState?.phase === 'ended' && gameState.result && user && (

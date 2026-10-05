@@ -24,6 +24,7 @@ interface PlayerSeatViewProps {
   onTakeSeat?: (seatIndex: number) => void;
   canKick?: boolean;
   onKick?: (userId: string) => void;
+  chatBubbleText?: string | null;
 }
 
 export const PlayerSeatView: React.FC<PlayerSeatViewProps> = ({
@@ -37,6 +38,7 @@ export const PlayerSeatView: React.FC<PlayerSeatViewProps> = ({
   onTakeSeat,
   canKick = false,
   onKick,
+  chatBubbleText,
 }) => {
   const [timeLeft, setTimeLeft] = useState<number>(0);
 
@@ -90,6 +92,14 @@ export const PlayerSeatView: React.FC<PlayerSeatViewProps> = ({
     >
       {/* Player Avatar Box (ZingPlay style) */}
       <div className="flex flex-col items-center relative shrink-0">
+        {/* Floating Chat Speech Bubble */}
+        {chatBubbleText && (
+          <div className="absolute -top-11 left-1/2 -translate-x-1/2 z-50 bg-gradient-to-r from-amber-200 via-white to-amber-100 text-slate-950 font-black text-xs px-3 py-1.5 rounded-2xl shadow-2xl border-2 border-amber-400 whitespace-nowrap animate-bounce max-w-[200px] truncate pointer-events-none drop-shadow-md">
+            {chatBubbleText}
+            <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-[6px] border-t-amber-200" />
+          </div>
+        )}
+
         {/* Crown if owner */}
         {player.isOwner && (
           <div className="absolute -top-3.5 z-20 text-amber-400 filter drop-shadow">

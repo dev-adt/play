@@ -49,12 +49,24 @@ export interface RoomClientView {
     chopNotices: { text: string; createdAt: number }[];
     result?: any;
   };
+  recentChats?: RoomChatMessage[];
+}
+
+export interface RoomChatMessage {
+  id: string;
+  senderId: string;
+  senderName: string;
+  senderSeatIndex: number;
+  text: string;
+  createdAt: number;
+  isSystem?: boolean;
 }
 
 interface SocketContextType {
   socket: Socket | null;
   isConnected: boolean;
   roomState: RoomClientView | null;
+  roomChats: RoomChatMessage[];
   joinRoom: (roomCode: string, password?: string) => Promise<{ success: boolean; error?: string; needPassword?: boolean }>;
   takeSeat: (seatIndex: number) => Promise<{ success: boolean; error?: string }>;
   leaveSeat: () => Promise<{ success: boolean; error?: string }>;
@@ -64,6 +76,7 @@ interface SocketContextType {
   passTurn: () => Promise<{ success: boolean; error?: string }>;
   nextGame: () => Promise<{ success: boolean; error?: string }>;
   kickPlayer: (targetUserId: string) => Promise<{ success: boolean; error?: string }>;
+  sendRoomChat: (text: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 const SocketContext = createContext<SocketContextType | null>(null);
@@ -74,6 +87,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const socketRef = useRef<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [roomState, setRoomState] = useState<RoomClientView | null>(null);
+  const [roomChats, setRoomChats] = useState<RoomChatMessage[]>([]);
   const prevTurnRef = useRef<number | null>(null);
   const prevPhaseRef = useRef<string | null>(null);
   const currentRoomCodeRef = useRef<string | null>(null);
@@ -144,7 +158,24 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         prevTurnRef.current = null;
       }
 
+      if (view.recentChats && view.recentChats.length > 0) {
+        setRoomChats(prev => {
+          const map = new Map<string, RoomChatMessage>();
+          prev.forEach(m => map.set(m.id, m));
+          view.recentChats!.forEach(m => map.set(m.id, m));
+          return Array.from(map.values()).sort((a, b) => a.createdAt - b.createdAt);
+        });
+      }
+
       setRoomState(view);
+    });
+
+    s.on('room_chat_message', (msg: RoomChatMessage) => {
+      setRoomChats(prev => {
+        if (prev.some(m => m.id === msg.id)) return prev;
+        return [...prev.slice(-49), msg];
+      });
+      sounds.playTick();
     });
 
     s.on('kicked_from_room', (data: { reason?: string }) => {
@@ -301,12 +332,26 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
+  const sendRoomChat = (text: string): Promise<{ success: boolean; error?: string }> => {
+    return new Promise((resolve) => {
+      const s = socketRef.current || socket;
+      if (!s || !roomState) {
+        resolve({ success: false, error: 'Chưa vào phòng' });
+        return;
+      }
+      s.emit('send_room_chat', { roomCode: roomState.code, text }, (res: any) => {
+        resolve(res);
+      });
+    });
+  };
+
   return (
     <SocketContext.Provider
       value={{
         socket,
         isConnected,
         roomState,
+        roomChats,
         joinRoom,
         takeSeat,
         leaveSeat,
@@ -316,6 +361,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         passTurn,
         nextGame,
         kickPlayer,
+        sendRoomChat,
       }}
     >
       {children}
