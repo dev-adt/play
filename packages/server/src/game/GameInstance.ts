@@ -92,6 +92,7 @@ export class GameInstance {
   public lastPlaySeat: number = 0;
   public pendingDut3BichPlayerId: string | null = null;
   public firstGame: boolean = false;
+  public isOpeningMove: boolean = true;
   public previousWinnerId: string | null = null;
   public lowestCardDealt: Card | null = null;
   public priorChopEntries: ScoreLedgerEntry[] = [];
@@ -140,6 +141,7 @@ export class GameInstance {
   }
 
   public async start(): Promise<void> {
+    this.isOpeningMove = true;
     const { hands } = dealCards(this.players.length);
     for (let i = 0; i < this.players.length; i++) {
       this.players[i].hand = hands[i];
@@ -244,8 +246,8 @@ export class GameInstance {
       const sortedHand = sortCards(currentP.hand);
       let cardToPlay: Card = sortedHand[0];
 
-      // If first game and first turn of game, must play lowest card dealt
-      if (this.firstGame && !currentP.hasPlayedCard && this.lowestCardDealt) {
+      // If first game and opening move of the game, must play lowest card dealt
+      if (this.firstGame && this.isOpeningMove && this.lowestCardDealt) {
         const found = currentP.hand.find(c => c.id === this.lowestCardDealt!.id);
         if (found) {
           cardToPlay = found;
@@ -289,13 +291,13 @@ export class GameInstance {
       return { success: false, error: 'Các lá bài được chọn không tạo thành tổ hợp hợp lệ' };
     }
 
-    // First game opening restriction: must include lowest dealt card (Rule 5.1)
-    if (this.firstGame && !currentP.hasPlayedCard && this.lowestCardDealt) {
+    // First game opening move restriction: only the opening move of the game must include the lowest dealt card (Rule 5.1)
+    if (this.firstGame && this.isOpeningMove && this.lowestCardDealt) {
       const hasLowest = cardsToPlay.some(c => c.id === this.lowestCardDealt!.id);
       if (!hasLowest) {
         return {
           success: false,
-          error: `Ván đầu tiên phải đánh nước có chứa lá nhỏ nhất (${this.lowestCardDealt.rank}${this.lowestCardDealt.suit})`,
+          error: `Nước đầu tiên của ván phải đánh bài có chứa lá nhỏ nhất (${this.lowestCardDealt.rank}${this.lowestCardDealt.suit})`,
         };
       }
     }
@@ -353,6 +355,7 @@ export class GameInstance {
     // Remove played cards from hand
     currentP.hand = currentP.hand.filter(c => !cardIds.includes(c.id));
     currentP.hasPlayedCard = true;
+    this.isOpeningMove = false;
 
     // Record table play
     this.currentCombo = playedCombo;
