@@ -82,7 +82,7 @@ export const ActionBar: React.FC<ActionBarProps> = ({
   };
 
   return (
-    <div className="flex flex-col items-center gap-1.5 select-none z-40 mb-1">
+    <div className="w-full max-w-3xl flex flex-col items-center gap-1.5 select-none z-40 mb-1 px-3 md:px-6">
       {/* Dynamic Error / Validation Alert Banner */}
       {errorMessage && (
         <div className="bg-red-950/95 border-2 border-red-500 text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-2xl flex items-center gap-2 animate-bounce">
@@ -91,46 +91,52 @@ export const ActionBar: React.FC<ActionBarProps> = ({
         </div>
       )}
 
-      {/* Action Buttons Row (Matching Image 1: BỎ LƯỢT / GỢI Ý / ĐÁNH) */}
-      <div className="flex items-center justify-center gap-3">
-        {/* Pass Button */}
-        <button
-          type="button"
-          onClick={onPass}
-          disabled={!isMyTurn || hasPassed || !currentCombo}
-          className="btn-game-red text-xs md:text-sm py-2 px-6 shadow-xl flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
-          title="Bỏ qua lượt này"
-        >
-          <SkipForward size={16} />
-          BỎ LƯỢT
-        </button>
+      {/* Action Buttons Row: GỢI Ý (Trái) / ĐÁNH (Giữa màn hình) / BỎ LƯỢT (Góc phải) */}
+      <div className="w-full flex items-center justify-between gap-2">
+        {/* Left Side: Gợi Ý */}
+        <div className="flex-1 flex justify-start">
+          <button
+            type="button"
+            onClick={onSuggest}
+            disabled={!isMyTurn || hasPassed}
+            className="btn-game-red text-xs md:text-sm py-2 px-4 md:px-6 shadow-xl flex items-center gap-1.5 opacity-90 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition"
+            title="Tự động chọn quân bài hợp lệ để chặn"
+          >
+            <Wand2 size={16} />
+            <span>GỢI Ý</span>
+          </button>
+        </div>
 
-        {/* Suggest Button */}
-        <button
-          type="button"
-          onClick={onSuggest}
-          disabled={!isMyTurn || hasPassed}
-          className="btn-game-red text-xs md:text-sm py-2 px-6 shadow-xl flex items-center gap-1.5 opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
-          title="Tự động chọn quân bài hợp lệ để chặn"
-        >
-          <Wand2 size={16} />
-          GỢI Ý
-        </button>
+        {/* Exact Center: ĐÁNH (Ra giữa màn hình) */}
+        <div className="shrink-0 flex justify-center">
+          <button
+            type="button"
+            onClick={handlePlayClick}
+            className={`py-2.5 px-8 md:px-12 rounded-full text-xs md:text-sm font-black tracking-wider flex items-center gap-2 shadow-2xl transition active:scale-95 cursor-pointer ${
+              isMyTurn && !hasPassed && selectedCards.length > 0
+                ? 'btn-game-gold text-amber-950 scale-105 ring-2 ring-amber-300/70 shadow-amber-500/20'
+                : 'bg-gradient-to-b from-amber-600 to-amber-800 text-amber-200 border border-amber-400/40 opacity-75'
+            }`}
+            title="Đánh bài ra giữa bàn"
+          >
+            <Play size={17} fill={isMyTurn && !hasPassed && selectedCards.length > 0 ? '#3e2723' : '#fef08a'} />
+            <span>ĐÁNH</span>
+          </button>
+        </div>
 
-        {/* Play Button - Can always be clicked when it's player's turn to get instant validation feedback! */}
-        <button
-          type="button"
-          onClick={handlePlayClick}
-          className={`py-2 px-8 rounded-full text-xs md:text-sm font-black tracking-wider flex items-center gap-1.5 shadow-2xl transition active:scale-95 cursor-pointer ${
-            isMyTurn && !hasPassed && selectedCards.length > 0
-              ? 'btn-game-gold text-amber-950'
-              : 'bg-gradient-to-b from-amber-600 to-amber-800 text-amber-200 border border-amber-400/40 opacity-75'
-          }`}
-          title="Đánh bài ra giữa bàn"
-        >
-          <Play size={16} fill={isMyTurn && !hasPassed && selectedCards.length > 0 ? '#3e2723' : '#fef08a'} />
-          ĐÁNH
-        </button>
+        {/* Right Side: BỎ LƯỢT (Qua bên góc phải) */}
+        <div className="flex-1 flex justify-end">
+          <button
+            type="button"
+            onClick={onPass}
+            disabled={!isMyTurn || hasPassed || !currentCombo}
+            className="btn-game-red text-xs md:text-sm py-2 px-4 md:px-6 shadow-xl flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition"
+            title="Bỏ qua lượt này"
+          >
+            <SkipForward size={16} />
+            <span>BỎ LƯỢT</span>
+          </button>
+        </div>
       </div>
     </div>
   );
