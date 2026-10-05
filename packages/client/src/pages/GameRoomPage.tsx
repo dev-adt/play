@@ -21,8 +21,10 @@ import {
   BookOpen,
   Wifi,
   Sparkles,
+  Trophy,
 } from 'lucide-react';
 import { RulesModal } from '../components/RulesModal';
+import { HistoryModal } from '../components/HistoryModal';
 
 interface GameRoomPageProps {
   roomCode: string;
@@ -46,6 +48,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
   const [sortBySuit, setSortBySuit] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showRules, setShowRules] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [isMuted, setIsMuted] = useState(sounds.isMuted);
 
   const handleToggleSound = () => {
@@ -306,6 +309,15 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
             <Menu size={18} />
           </button>
 
+          {/* Trophy / Stats icon */}
+          <button
+            onClick={() => setShowHistory(true)}
+            className="w-8 h-8 rounded-full bg-black/60 border border-slate-700 hover:border-amber-400 text-amber-400 flex items-center justify-center transition"
+            title="Bảng thành tích & Lịch sử đấu"
+          >
+            <Trophy size={16} />
+          </button>
+
           {/* Table info pill (Matching Image 2: "20K · Bàn: 6005342") */}
           <div className="bg-black/75 border border-amber-500/30 rounded-xl px-3 py-1 text-xs shadow">
             <div className="font-extrabold text-amber-300 font-display flex items-center gap-1.5">
@@ -531,6 +543,9 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
 
       {/* Rules Modal */}
       {showRules && <RulesModal onClose={() => setShowRules(false)} />}
+
+      {/* Achievements & History Modal */}
+      {showHistory && <HistoryModal onClose={() => setShowHistory(false)} />}
 
       {/* Result Modal when game ends */}
       {gameState?.phase === 'ended' && gameState.result && user && (

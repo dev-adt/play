@@ -56,6 +56,8 @@ export interface GameResultRow {
   win_delta: number;
   breakdown: any;
   created_at: Date;
+  mode?: string;
+  end_reason?: string;
 }
 
 class DatabaseAdapter {
@@ -577,7 +579,13 @@ class DatabaseAdapter {
         this.localData.scoreLedger.push(entry);
       }
       for (const res of data.results) {
-        this.localData.gameResults.push(res);
+        this.localData.gameResults.push({
+          ...res,
+          game_id: data.gameId,
+          mode: data.mode,
+          end_reason: data.endReason,
+          created_at: (res as any).created_at || new Date().toISOString(),
+        });
       }
       this.persistLocal();
     }
@@ -589,38 +597,47 @@ class DatabaseAdapter {
   }
 
   // --- RECENT GAMES HISTORY ---
-  async getPlayerGameHistory(userId: string, limit: number = 10): Promise<any[]> {
+  async getPlayerGameHistory(userId: string, limit: number = 30, mode?: string): Promise<any[]> {
     if (this.dbType === 'mysql' && this.mysqlPool) {
-      const [rows] = await this.mysqlPool.query<any[]>(
-        `SELECT gr.id, gr.game_id, gr.score_delta, gr.win_delta, gr.breakdown, gr.created_at, g.mode, g.end_reason
+      let query = `SELECT gr.id, gr.game_id, gr.score_delta, gr.win_delta, gr.breakdown, gr.created_at, g.mode, g.end_reason
          FROM game_results gr
          JOIN games g ON gr.game_id = g.id
-         WHERE gr.player_id = ?
-         ORDER BY gr.created_at DESC
-         LIMIT ?`,
-        [userId, limit]
-      );
+         WHERE gr.player_id = ?`;
+      const params: any[] = [userId];
+      if (mode && (mode === 'basic' || mode === 'fund')) {
+        query += ` AND g.mode = ?`;
+        params.push(mode);
+      }
+      query += ` ORDER BY gr.created_at DESC LIMIT ?`;
+      params.push(limit);
+
+      const [rows] = await this.mysqlPool.query<any[]>(query, params);
       return rows;
     }
 
     if (this.dbType === 'pg' && this.pgPool) {
-      const res = await this.pgPool.query(
-        `SELECT gr.id, gr.game_id, gr.score_delta, gr.win_delta, gr.breakdown, gr.created_at, g.mode, g.end_reason
+      let query = `SELECT gr.id, gr.game_id, gr.score_delta, gr.win_delta, gr.breakdown, gr.created_at, g.mode, g.end_reason
          FROM game_results gr
          JOIN games g ON gr.game_id = g.id
-         WHERE gr.player_id = $1
-         ORDER BY gr.created_at DESC
-         LIMIT $2`,
-        [userId, limit]
-      );
+         WHERE gr.player_id = $1`;
+      const params: any[] = [userId];
+      if (mode && (mode === 'basic' || mode === 'fund')) {
+        query += ` AND g.mode = $2 ORDER BY gr.created_at DESC LIMIT $3`;
+        params.push(mode, limit);
+      } else {
+        query += ` ORDER BY gr.created_at DESC LIMIT $2`;
+        params.push(limit);
+      }
+
+      const res = await this.pgPool.query(query, params);
       return res.rows;
     }
 
-    const filtered = this.localData.gameResults
-      .filter(r => r.player_id === userId)
-      .slice(-limit)
-      .reverse();
-    return filtered;
+    let filtered = this.localData.gameResults.filter(r => r.player_id === userId);
+    if (mode && (mode === 'basic' || mode === 'fund')) {
+      filtered = filtered.filter(r => r.mode === mode);
+    }
+    return filtered.slice(-limit).reverse();
   }
 }
 

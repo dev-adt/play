@@ -21,6 +21,7 @@ import { CreateRoomModal } from '../components/CreateRoomModal';
 import { RoomBrowserModal } from '../components/RoomBrowserModal';
 import { JoinFriendModal } from '../components/JoinFriendModal';
 import { RulesModal } from '../components/RulesModal';
+import { HistoryModal } from '../components/HistoryModal';
 
 interface HomePageProps {
   onNavigateToRoom: (roomCode: string) => void;
@@ -33,6 +34,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToRoom }) => {
   const [showBrowser, setShowBrowser] = useState(false);
   const [showJoinFriend, setShowJoinFriend] = useState(false);
   const [showRules, setShowRules] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [quickJoining, setQuickJoining] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -170,11 +172,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToRoom }) => {
                     onClick={e => {
                       e.stopPropagation();
                       setShowUserMenu(false);
-                      showToast(`Điểm ròng Basic: ${stats?.basic.net_score || 0} điểm`);
+                      setShowHistory(true);
                     }}
-                    className="w-full text-left px-3 py-2 rounded-xl text-slate-200 hover:bg-amber-500/20 font-bold flex items-center gap-2"
+                    className="w-full text-left px-3 py-2 rounded-xl text-slate-200 hover:bg-amber-500/20 font-bold flex items-center gap-2 transition"
                   >
-                    <Trophy size={14} className="text-amber-400" /> Thành tích
+                    <Trophy size={14} className="text-amber-400" /> Bảng Thành Tích & Lịch Sử
                   </button>
                   <button
                     onClick={e => {
@@ -215,8 +217,17 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToRoom }) => {
           </div>
         </div>
 
-        {/* Right: Action Buttons (Glossy Purple Round Buttons) */}
+        {/* Right: Action Buttons (Glossy Round Buttons) */}
         <div className="flex items-center gap-2">
+          {/* Achievements / Trophy button */}
+          <button
+            onClick={() => setShowHistory(true)}
+            className="w-9 h-9 rounded-full bg-gradient-to-b from-amber-500 to-yellow-600 border-2 border-yellow-300/80 text-white flex items-center justify-center shadow-lg active:scale-95 transition hover:brightness-110"
+            title="Bảng thành tích & Lịch sử đấu"
+          >
+            <Trophy size={17} className="text-white drop-shadow" />
+          </button>
+
           {/* Rules / Book button */}
           <button
             onClick={() => setShowRules(true)}
@@ -512,6 +523,14 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToRoom }) => {
       )}
 
       {showRules && <RulesModal onClose={() => setShowRules(false)} />}
+
+      {/* Achievements & Match History Modal */}
+      {showHistory && (
+        <HistoryModal
+          onClose={() => setShowHistory(false)}
+          onOpenRegister={() => setShowAuth(true)}
+        />
+      )}
     </div>
   );
 };

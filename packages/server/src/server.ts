@@ -204,8 +204,11 @@ export function createServer() {
   // --- STATS & HISTORY ---
   app.get('/api/history', authenticate, async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const history = await db.getPlayerGameHistory(req.user!.userId);
-      res.json({ history });
+      const mode = typeof req.query.mode === 'string' ? req.query.mode : undefined;
+      const limit = typeof req.query.limit === 'string' ? parseInt(req.query.limit, 10) : 30;
+      const history = await db.getPlayerGameHistory(req.user!.userId, limit, mode);
+      const stats = await db.getPlayerStats(req.user!.userId);
+      res.json({ history, stats });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
