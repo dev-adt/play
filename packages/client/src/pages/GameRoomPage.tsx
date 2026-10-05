@@ -174,7 +174,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
         isOnline: true,
         isCurrentTurn: false,
         isReady: myMember.isReady,
-        isOwner: isOwner,
+        isOwner: !!isOwner,
       }
     : null;
 
@@ -338,29 +338,28 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
         </div>
       </div>
 
-      {/* 2. THE STADIUM / OVAL CASINO TABLE (Matching Image 2) */}
-      <div className="stadium-table flex-1 flex flex-col justify-between p-3 md:p-6 w-full max-w-5xl mx-auto my-auto relative min-h-[500px]">
-        {/* Top Seat (North) */}
-        {topSeatIdx !== -1 && (
-          <div className="w-full flex justify-center z-20">
-            <PlayerSeatView
-              player={topPlayer}
-              seatIndex={topSeatIdx}
-              turnDeadline={gameState?.turnDeadline}
-              turnTimeoutSeconds={gameState?.turnTimeoutSeconds}
-              isPendingDut3Bich={gameState?.pendingDut3BichPlayerId === topPlayer?.id}
-              position="top"
-              isLobby={!isGameActive}
-              onTakeSeat={takeSeat}
-            />
-          </div>
-        )}
+      {/* 2. THE STADIUM / OVAL CASINO TABLE (Holds Top, Left, Right Opponents & Center Table) */}
+      <div className="flex-1 w-full max-w-5xl mx-auto flex items-center justify-center relative p-1 md:p-3 min-h-[280px] max-h-[52vh]">
+        <div className="stadium-table w-full h-full relative flex items-center justify-center">
+          {/* Top Seat (Opponent) */}
+          {topSeatIdx !== -1 && (
+            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20">
+              <PlayerSeatView
+                player={topPlayer}
+                seatIndex={topSeatIdx}
+                turnDeadline={gameState?.turnDeadline}
+                turnTimeoutSeconds={gameState?.turnTimeoutSeconds}
+                isPendingDut3Bich={gameState?.pendingDut3BichPlayerId === topPlayer?.id}
+                position="top"
+                isLobby={!isGameActive}
+                onTakeSeat={takeSeat}
+              />
+            </div>
+          )}
 
-        {/* Middle Row: Left Seat (West) - Center Table (Combo) - Right Seat (East) */}
-        <div className="w-full flex items-center justify-between my-auto px-1 md:px-6 z-20">
-          {/* Left Seat */}
-          <div className="w-36 flex justify-start">
-            {leftSeatIdx !== -1 && (
+          {/* Left Seat (Opponent) */}
+          {leftSeatIdx !== -1 && (
+            <div className="absolute left-2 md:left-6 top-1/2 -translate-y-1/2 z-20">
               <PlayerSeatView
                 player={leftPlayer}
                 seatIndex={leftSeatIdx}
@@ -371,11 +370,11 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
                 isLobby={!isGameActive}
                 onTakeSeat={takeSeat}
               />
-            )}
-          </div>
+            </div>
+          )}
 
-          {/* Center Table: Combo or Lobby Host Controls */}
-          <div className="flex-1 flex flex-col items-center justify-center">
+          {/* Center Table: Combo Cards or Lobby Host Controls */}
+          <div className="z-10 flex flex-col items-center justify-center px-4">
             {isGameActive && gameState ? (
               <TableCenterView
                 currentCombo={gameState.currentCombo}
@@ -384,7 +383,6 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
                 isMyTurn={isMyTurn}
               />
             ) : (
-              // Lobby Center: Start Game Button (for Owner) or Waiting Status
               <div className="flex flex-col items-center justify-center p-4 text-center z-30">
                 {isOwner ? (
                   <div className="flex flex-col items-center gap-2">
@@ -413,9 +411,9 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
             )}
           </div>
 
-          {/* Right Seat */}
-          <div className="w-36 flex justify-end">
-            {rightSeatIdx !== -1 && (
+          {/* Right Seat (Opponent) */}
+          {rightSeatIdx !== -1 && (
+            <div className="absolute right-2 md:right-6 top-1/2 -translate-y-1/2 z-20">
               <PlayerSeatView
                 player={rightPlayer}
                 seatIndex={rightSeatIdx}
@@ -426,74 +424,97 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
                 isLobby={!isGameActive}
                 onTakeSeat={takeSeat}
               />
-            )}
-          </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 3. BOTTOM AREA: SELF AVATAR (LEFT), ACTION BAR (CENTER), HAND CARDS (CENTER), "XẾP BÀI" BUTTON (RIGHT) */}
+      <div className="w-full relative z-30 flex flex-col items-center pb-2 select-none">
+        {/* Bottom Left: Self Avatar & Score (Matching Image 1: "Nguyên 9.32M") */}
+        <div className="absolute left-2 md:left-6 bottom-2 z-30 hidden sm:flex items-center">
+          <PlayerSeatView
+            player={bottomPlayer}
+            seatIndex={bottomSeatIdx}
+            turnDeadline={gameState?.turnDeadline}
+            turnTimeoutSeconds={gameState?.turnTimeoutSeconds}
+            isPendingDut3Bich={gameState?.pendingDut3BichPlayerId === bottomPlayer?.id}
+            position="bottom"
+            isLobby={!isGameActive}
+            onTakeSeat={takeSeat}
+          />
         </div>
 
-        {/* Bottom Area: Self Seat + Controls + Hand (Matching Image 2) */}
-        <div className="w-full flex flex-col items-center justify-end z-30 mt-auto">
-          {/* If In Lobby & Seated: show Ready & Leave buttons */}
-          {!isGameActive && myMember && (
-            <div className="mb-2 flex items-center gap-2">
-              {!isOwner && (
-                <button
-                  onClick={toggleReady}
-                  className={`btn-game-gold py-1.5 px-6 text-xs md:text-sm ${
-                    myMember.isReady ? 'bg-slate-700' : ''
-                  }`}
-                >
-                  {myMember.isReady ? 'HỦY SẴN SÀNG' : 'SẴN SÀNG'}
-                </button>
-              )}
+        {/* Lobby Controls for Seated Player / Spectator */}
+        {!isGameActive && myMember && (
+          <div className="mb-2 flex items-center gap-2">
+            {!isOwner && (
               <button
-                onClick={leaveSeat}
-                className="btn-game-red py-1.5 px-4 text-xs flex items-center gap-1"
+                onClick={toggleReady}
+                className={`btn-game-gold py-1.5 px-6 text-xs md:text-sm ${
+                  myMember.isReady ? 'bg-slate-700' : ''
+                }`}
               >
-                <UserX size={14} /> Rời ghế
+                {myMember.isReady ? 'HỦY SẴN SÀNG' : 'SẴN SÀNG'}
               </button>
-            </div>
-          )}
+            )}
+            <button
+              onClick={leaveSeat}
+              className="btn-game-red py-1.5 px-4 text-xs flex items-center gap-1"
+            >
+              <UserX size={14} /> Rời ghế
+            </button>
+          </div>
+        )}
 
-          {/* If Spectator in lobby: prompt to take seat */}
-          {!isGameActive && isSpectator && (
-            <div className="mb-2">
-              <button
-                onClick={() => {
-                  const emptyIdx = seatedMembers.findIndex(s => s === null);
-                  if (emptyIdx !== -1) takeSeat(emptyIdx);
-                }}
-                className="btn-game-gold py-2 px-6 text-sm"
-              >
-                + Ngồi Vào Ghế Chơi
-              </button>
-            </div>
-          )}
+        {!isGameActive && isSpectator && (
+          <div className="mb-2">
+            <button
+              onClick={() => {
+                const emptyIdx = seatedMembers.findIndex(s => s === null);
+                if (emptyIdx !== -1) takeSeat(emptyIdx);
+              }}
+              className="btn-game-gold py-2 px-6 text-sm"
+            >
+              + Ngồi Vào Ghế Chơi
+            </button>
+          </div>
+        )}
 
-          {/* In-Game Action Bar */}
-          {isGameActive && gameState && !isSpectator && (
-            <ActionBar
-              hand={myHand}
-              selectedCardIds={selectedCardIds}
-              currentCombo={gameState.currentCombo}
-              isMyTurn={isMyTurn}
-              hasPassed={hasPassed}
-              onPlay={handlePlay}
-              onPass={handlePass}
-              onSortToggle={() => setSortBySuit(!sortBySuit)}
-              onSuggest={handleSuggest}
-              onClearSelection={() => setSelectedCardIds([])}
-            />
-          )}
+        {/* In-Game Action Bar: BỎ LƯỢT / GỢI Ý / ĐÁNH with instant validation alerts */}
+        {isGameActive && gameState && !isSpectator && (
+          <ActionBar
+            hand={myHand}
+            selectedCardIds={selectedCardIds}
+            currentCombo={gameState.currentCombo}
+            isMyTurn={isMyTurn}
+            hasPassed={hasPassed}
+            onPlay={handlePlay}
+            onPass={handlePass}
+            onSuggest={handleSuggest}
+            onClearSelection={() => setSelectedCardIds([])}
+          />
+        )}
 
-          {/* Player's Hand Cards (Clean overlapping matching Image 2) */}
-          {isGameActive && (
+        {/* In-Game Hand Cards Horizontal Row + "XẾP BÀI" Pill Button (Matching Image 1) */}
+        {isGameActive && (
+          <div className="w-full max-w-4xl flex items-center justify-center relative px-2">
             <HandView
               hand={myHand}
               selectedCardIds={selectedCardIds}
               onToggleSelect={handleToggleSelect}
             />
-          )}
-        </div>
+
+            {/* "XẾP BÀI" Button on Right Side of Cards (Matching Image 1!) */}
+            <button
+              onClick={() => setSortBySuit(!sortBySuit)}
+              className="btn-game-red py-2 px-4 md:px-5 rounded-full font-black text-xs md:text-sm shadow-2xl ml-2 shrink-0 self-center tracking-wider active:scale-95 transition"
+              title={sortBySuit ? 'Đang xếp theo chất (bấm để xếp theo giá trị)' : 'Đang xếp theo giá trị (bấm để xếp theo chất)'}
+            >
+              XẾP BÀI
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Rules Modal */}

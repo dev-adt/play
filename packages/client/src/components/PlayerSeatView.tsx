@@ -12,7 +12,7 @@ interface PlayerSeatViewProps {
     isOnline: boolean;
     isCurrentTurn: boolean;
     isReady?: boolean;
-    isOwner?: boolean;
+    isOwner?: boolean | null;
     scoreText?: string;
   } | null;
   seatIndex: number;

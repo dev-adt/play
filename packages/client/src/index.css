@@ -39,17 +39,32 @@ html, body {
 
 /* Stadium / Oval Casino Table matching ZingPlay reference */
 .stadium-table {
-  background: var(--table-bg);
-  border: 4px solid var(--table-border);
-  box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.8), 0 15px 45px rgba(0, 0, 0, 0.9);
-  border-radius: 9999px;
+  background: radial-gradient(ellipse at 50% 50%, #8b1313 0%, #630c0c 55%, #380404 100%);
+  border: 4px solid #f5b041;
+  outline: 6px solid #4a070c;
+  box-shadow: inset 0 0 70px rgba(0, 0, 0, 0.8), 0 15px 40px rgba(0, 0, 0, 0.9);
+  border-radius: 180px;
   position: relative;
+}
+
+.stadium-table::before {
+  content: '';
+  position: absolute;
+  inset: 12px;
+  border: 1.5px solid rgba(245, 176, 65, 0.45);
+  border-radius: 168px;
+  pointer-events: none;
 }
 
 @media (max-width: 768px) {
   .stadium-table {
-    border-radius: 36px;
+    border-radius: 90px;
     border-width: 3px;
+    outline-width: 4px;
+  }
+  .stadium-table::before {
+    inset: 8px;
+    border-radius: 82px;
   }
 }
 

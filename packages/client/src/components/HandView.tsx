@@ -15,31 +15,43 @@ export const HandView: React.FC<HandViewProps> = ({
 }) => {
   const cardCount = hand.length;
 
+  // Calculate dynamic overlap in pixels so all 13 cards fit horizontally on screen
+  // Card width is 64px on desktop, 48px on mobile
+  const overlapPx =
+    cardCount > 11 ? -36 : cardCount > 9 ? -30 : cardCount > 6 ? -24 : -16;
+
   return (
-    <div className="w-full flex justify-center items-end relative select-none pb-1">
+    <div className="w-full flex items-end justify-center select-none overflow-x-auto overflow-y-visible px-2 pt-8 pb-1 scrollbar-none">
       <div
-        className="flex items-end justify-center relative overflow-x-auto max-w-full pb-4 pt-6 px-4"
-        style={{ minHeight: '110px' }}
+        className="flex flex-row flex-nowrap items-end justify-center relative"
+        style={{
+          minHeight: '115px',
+          display: 'flex',
+          flexDirection: 'row',
+          flexWrap: 'nowrap',
+          alignItems: 'flex-end',
+          justifyContent: 'center',
+        }}
       >
         {hand.map((card, idx) => {
           const isSelected = selectedCardIds.includes(card.id);
-          // Overlap cards smoothly so every card's rank & suit is readable (matching Image 2)
-          const overlap = cardCount > 11 ? -32 : cardCount > 8 ? -26 : -20;
 
           return (
             <div
               key={card.id}
               style={{
-                marginLeft: idx === 0 ? '0px' : `${overlap}px`,
+                marginLeft: idx === 0 ? '0px' : `${overlapPx}px`,
                 zIndex: isSelected ? 40 + idx : idx,
+                transform: isSelected ? 'translateY(-24px)' : 'translateY(0px)',
+                transition: 'transform 0.16s cubic-bezier(0.2, 0.8, 0.4, 1)',
               }}
-              className="relative transition-transform duration-150"
+              className="relative shrink-0 cursor-pointer"
+              onClick={() => onToggleSelect(card.id)}
             >
               <CardView
                 card={card}
                 isSelected={isSelected}
                 size="md"
-                onClick={() => onToggleSelect(card.id)}
               />
             </div>
           );
