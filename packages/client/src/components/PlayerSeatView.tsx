@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { CardView } from './CardView';
-import { ShieldAlert, WifiOff, Crown } from 'lucide-react';
+import { ShieldAlert, WifiOff, Crown, UserX } from 'lucide-react';
 
 interface PlayerSeatViewProps {
   player?: {
@@ -22,6 +22,8 @@ interface PlayerSeatViewProps {
   position: 'top' | 'left' | 'right' | 'bottom';
   isLobby?: boolean;
   onTakeSeat?: (seatIndex: number) => void;
+  canKick?: boolean;
+  onKick?: (userId: string) => void;
 }
 
 export const PlayerSeatView: React.FC<PlayerSeatViewProps> = ({
@@ -33,6 +35,8 @@ export const PlayerSeatView: React.FC<PlayerSeatViewProps> = ({
   position,
   isLobby = false,
   onTakeSeat,
+  canKick = false,
+  onKick,
 }) => {
   const [timeLeft, setTimeLeft] = useState<number>(0);
 
@@ -132,6 +136,22 @@ export const PlayerSeatView: React.FC<PlayerSeatViewProps> = ({
         <div className="text-[11px] font-extrabold text-amber-400 mt-0.5 tracking-tight font-display drop-shadow">
           {scoreDisplay}
         </div>
+
+        {/* Host Kick Button */}
+        {canKick && onKick && player && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (window.confirm(`Bạn có chắc muốn kick "${player.displayName}" ra khỏi bàn?`)) {
+                onKick(player.id);
+              }
+            }}
+            className="mt-1 bg-red-700/80 hover:bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full border border-red-400 shadow-md flex items-center gap-1 transition active:scale-95 cursor-pointer"
+            title={`Kick ${player.displayName} ra khỏi phòng`}
+          >
+            <UserX size={10} /> Kick
+          </button>
+        )}
       </div>
 
       {/* Blue Card Back with count badge (Matching Image 2!) */}

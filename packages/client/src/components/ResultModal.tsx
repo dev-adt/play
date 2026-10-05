@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import confetti from 'canvas-confetti';
 import { Trophy, Award, RotateCcw, AlertOctagon, Flame } from 'lucide-react';
 
@@ -14,6 +14,7 @@ interface ResultModalProps {
   mode: 'basic' | 'fund';
   myUserId: string;
   onNextGame: () => void;
+  autoStartTime?: number | null;
 }
 
 export const ResultModal: React.FC<ResultModalProps> = ({
@@ -22,8 +23,21 @@ export const ResultModal: React.FC<ResultModalProps> = ({
   mode,
   myUserId,
   onNextGame,
+  autoStartTime,
 }) => {
   const isWinner = result.winners.includes(myUserId);
+  const [secondsLeft, setSecondsLeft] = useState<number>(3);
+
+  useEffect(() => {
+    const target = autoStartTime || Date.now() + 3000;
+    const updateCountdown = () => {
+      const remaining = Math.max(0, Math.ceil((target - Date.now()) / 1000));
+      setSecondsLeft(remaining);
+    };
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 200);
+    return () => clearInterval(interval);
+  }, [autoStartTime]);
 
   useEffect(() => {
     if (isWinner) {
@@ -144,11 +158,17 @@ export const ResultModal: React.FC<ResultModalProps> = ({
           </div>
         )}
 
-        {/* Action Button: Chơi tiếp */}
+        {/* Auto start notification */}
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-full px-4 py-1.5 text-xs text-amber-300 font-bold flex items-center justify-center gap-2 mb-4 animate-pulse">
+          <RotateCcw size={14} className="animate-spin text-amber-400" />
+          <span>Ván mới sẽ tự động bắt đầu sau {secondsLeft}s...</span>
+        </div>
+
+        {/* Action Button: Chơi ngay */}
         <div className="flex justify-center">
-          <button onClick={onNextGame} className="btn-gold py-3 px-8 text-base">
+          <button onClick={onNextGame} className="btn-gold py-2.5 px-8 text-base shadow-xl flex items-center gap-2">
             <RotateCcw size={18} />
-            Chơi tiếp
+            <span>Chơi ngay {secondsLeft > 0 ? `(${secondsLeft}s)` : ''}</span>
           </button>
         </div>
       </div>

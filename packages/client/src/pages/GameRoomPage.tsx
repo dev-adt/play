@@ -39,6 +39,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
     playCards,
     passTurn,
     nextGame,
+    kickPlayer,
   } = useSocket();
 
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
@@ -358,6 +359,8 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
                 position="top"
                 isLobby={!isGameActive}
                 onTakeSeat={takeSeat}
+                canKick={!!isOwner && topPlayer !== null && topPlayer.id !== user?.userId}
+                onKick={kickPlayer}
               />
             </div>
           )}
@@ -374,6 +377,8 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
                 position="left"
                 isLobby={!isGameActive}
                 onTakeSeat={takeSeat}
+                canKick={!!isOwner && leftPlayer !== null && leftPlayer.id !== user?.userId}
+                onKick={kickPlayer}
               />
             </div>
           )}
@@ -428,6 +433,8 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
                 position="right"
                 isLobby={!isGameActive}
                 onTakeSeat={takeSeat}
+                canKick={!!isOwner && rightPlayer !== null && rightPlayer.id !== user?.userId}
+                onKick={kickPlayer}
               />
             </div>
           )}
@@ -533,6 +540,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
           mode={gameState.mode}
           myUserId={user.userId}
           onNextGame={nextGame}
+          autoStartTime={roomState.nextGameAutoStartTime}
         />
       )}
     </div>

@@ -12,6 +12,7 @@ export interface RoomMember {
   isReady: boolean;
   isOnline: boolean;
   socketId: string | null;
+  offlineSince?: number | null;
 }
 
 export interface RoomClientView {
@@ -25,6 +26,7 @@ export interface RoomClientView {
   isGameActive: boolean;
   mySeatIndex: number;
   seats: (RoomMember | null)[];
+  nextGameAutoStartTime?: number | null;
   gameState?: GameStateClientView;
 }
 
@@ -40,6 +42,9 @@ export class Room {
   public activeGame: GameInstance | null = null;
   public gameCount: number = 0;
   public previousWinnerId: string | null = null;
+  public nextGameAutoStartTimer: NodeJS.Timeout | null = null;
+  public nextGameAutoStartTime: number | null = null;
+  public disconnectTimers = new Map<string, NodeJS.Timeout>();
 
   private broadcastFn: (room: Room) => void;
 
@@ -73,12 +78,19 @@ export class Room {
     seatIndex: number,
     socketId: string
   ): { success: boolean; error?: string } {
+    // Clear disconnect timer if any
+    if (this.disconnectTimers.has(user.id)) {
+      clearTimeout(this.disconnectTimers.get(user.id)!);
+      this.disconnectTimers.delete(user.id);
+    }
+
     // If game is active, only reconnecting to own seat is allowed
     if (this.activeGame && this.activeGame.phase === 'playing') {
       const existing = this.getMemberByUserId(user.id);
       if (existing) {
         existing.isOnline = true;
         existing.socketId = socketId;
+        existing.offlineSince = null;
         this.activeGame.setPlayerOnline(user.id, true);
         this.broadcast();
         return { success: true };
@@ -161,6 +173,88 @@ export class Room {
     return { success: true };
   }
 
+  public scheduleAutoStartNextGame(delayMs: number = 3000): void {
+    this.clearAutoStartNextGame();
+    this.nextGameAutoStartTime = Date.now() + delayMs;
+
+    this.nextGameAutoStartTimer = setTimeout(() => {
+      this.nextGameAutoStartTimer = null;
+      this.nextGameAutoStartTime = null;
+
+      const seated = this.seats.filter((s): s is RoomMember => s !== null && s.isOnline);
+      if (seated.length >= 2) {
+        this.startNextRound();
+      } else {
+        this.activeGame = null;
+        for (const s of this.seats) {
+          if (s) s.isReady = s.userId === this.ownerId;
+        }
+        this.broadcast();
+      }
+    }, delayMs);
+  }
+
+  public clearAutoStartNextGame(): void {
+    if (this.nextGameAutoStartTimer) {
+      clearTimeout(this.nextGameAutoStartTimer);
+      this.nextGameAutoStartTimer = null;
+      this.nextGameAutoStartTime = null;
+    }
+  }
+
+  public startNextRound(): { success: boolean; error?: string } {
+    this.clearAutoStartNextGame();
+
+    const seated = this.seats.filter((s): s is RoomMember => s !== null && s.isOnline);
+    if (seated.length < 2) {
+      this.activeGame = null;
+      this.broadcast();
+      return { success: false, error: 'Cần ít nhất 2 người chơi online để bắt đầu' };
+    }
+
+    for (const s of this.seats) {
+      if (s) {
+        s.isReady = true;
+      }
+    }
+
+    this.gameCount++;
+    const isFirstGame = false;
+
+    const gameId = `${this.code}-game-${this.gameCount}-${Date.now()}`;
+    this.activeGame = new GameInstance({
+      id: gameId,
+      roomId: this.id,
+      mode: this.mode,
+      players: seated.map(s => ({
+        id: s.userId,
+        username: s.username,
+        displayName: s.displayName,
+        seatIndex: s.seatIndex,
+      })),
+      firstGame: isFirstGame,
+      previousWinnerId: this.previousWinnerId,
+      onStateChange: () => {
+        if (this.activeGame && this.activeGame.phase === 'ended' && this.activeGame.finalResult) {
+          if (this.activeGame.finalResult.winners.length === 1) {
+            this.previousWinnerId = this.activeGame.finalResult.winners[0];
+          } else {
+            this.previousWinnerId = null;
+          }
+          this.scheduleAutoStartNextGame(3000);
+        }
+        this.broadcast();
+      },
+      onAutoKickOfflinePlayer: (playerId: string, reason: string) => {
+        this.kickPlayer('system', playerId, reason);
+      },
+    });
+
+    this.activeGame.start();
+    this.broadcast();
+    return { success: true };
+  }
+
   public startGame(userId: string): { success: boolean; error?: string } {
     if (userId !== this.ownerId) {
       return { success: false, error: 'Chỉ có chủ phòng mới được bắt đầu ván bài' };
@@ -204,8 +298,12 @@ export class Room {
           } else {
             this.previousWinnerId = null;
           }
+          this.scheduleAutoStartNextGame(3000);
         }
         this.broadcast();
+      },
+      onAutoKickOfflinePlayer: (playerId: string, reason: string) => {
+        this.kickPlayer('system', playerId, reason);
       },
     });
 
@@ -215,8 +313,11 @@ export class Room {
   }
 
   public nextGame(userId: string): { success: boolean; error?: string } {
-    if (!this.activeGame || this.activeGame.phase !== 'ended') {
-      return { success: false, error: 'Ván bài chưa kết thúc' };
+    this.clearAutoStartNextGame();
+
+    const seated = this.seats.filter((s): s is RoomMember => s !== null && s.isOnline);
+    if (seated.length >= 2) {
+      return this.startNextRound();
     }
 
     // Reset ready states for next game
@@ -230,11 +331,63 @@ export class Room {
     return { success: true };
   }
 
+  public async kickPlayer(
+    requestUserId: string,
+    targetUserId: string,
+    reason?: string
+  ): Promise<{ success: boolean; error?: string }> {
+    if (requestUserId !== 'system' && requestUserId !== this.ownerId) {
+      return { success: false, error: 'Chỉ có chủ phòng mới có quyền kick người chơi' };
+    }
+
+    if (targetUserId === this.ownerId && requestUserId !== 'system') {
+      return { success: false, error: 'Không thể tự kick chính mình' };
+    }
+
+    const member = this.getMemberByUserId(targetUserId);
+    if (!member) {
+      return { success: false, error: 'Người chơi không có trong phòng' };
+    }
+
+    const displayName = member.displayName;
+
+    // Clear any disconnect timer
+    if (this.disconnectTimers.has(targetUserId)) {
+      clearTimeout(this.disconnectTimers.get(targetUserId)!);
+      this.disconnectTimers.delete(targetUserId);
+    }
+
+    // 1. If game is active, remove player from game
+    if (this.activeGame && this.activeGame.phase === 'playing') {
+      await this.activeGame.removePlayer(targetUserId, reason || `Chủ phòng đã kick ${displayName}`);
+    }
+
+    // 2. Clear seat
+    this.seats[member.seatIndex] = null;
+
+    // Handover host if host was kicked by system
+    if (targetUserId === this.ownerId) {
+      this.handoverHost();
+    }
+
+    // 3. Add table notice
+    if (this.activeGame) {
+      this.activeGame.chopNotices.push({
+        text: `🚫 ${displayName} đã bị kick khỏi phòng`,
+        createdAt: Date.now(),
+      });
+    }
+
+    this.broadcast();
+    return { success: true };
+  }
+
   public handleDisconnect(userId: string, socketId: string): void {
     const member = this.getMemberByUserId(userId);
     if (member && member.socketId === socketId) {
       member.isOnline = false;
       member.socketId = null;
+      member.offlineSince = Date.now();
 
       if (this.activeGame && this.activeGame.phase === 'playing') {
         this.activeGame.setPlayerOnline(userId, false);
@@ -244,6 +397,20 @@ export class Room {
           this.handoverHost();
         }
       }
+
+      // Schedule auto-kick after 3 minutes (180,000 ms) of being offline
+      if (this.disconnectTimers.has(userId)) {
+        clearTimeout(this.disconnectTimers.get(userId)!);
+      }
+      const timer = setTimeout(async () => {
+        this.disconnectTimers.delete(userId);
+        const m = this.getMemberByUserId(userId);
+        if (m && !m.isOnline) {
+          await this.kickPlayer('system', userId, `${m.displayName} bị out quá 3 phút và bị kick khỏi phòng`);
+        }
+      }, 3 * 60 * 1000);
+      this.disconnectTimers.set(userId, timer);
+
       this.broadcast();
     }
   }
@@ -273,6 +440,7 @@ export class Room {
       isGameActive: !!(this.activeGame && this.activeGame.phase === 'playing'),
       mySeatIndex: myMember ? myMember.seatIndex : -1,
       seats: this.seats,
+      nextGameAutoStartTime: this.nextGameAutoStartTime,
       gameState: this.activeGame ? this.activeGame.getClientView(userId) : undefined,
     };
   }

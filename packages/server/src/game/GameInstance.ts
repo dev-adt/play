@@ -32,6 +32,8 @@ export interface GamePlayer {
   hasPlayedCard: boolean;
   hasPassed: boolean;
   isOnline: boolean;
+  offlineSince?: number | null;
+  offlineAutoTurns?: number;
 }
 
 export interface PublicTablePlay {
@@ -90,6 +92,7 @@ export class GameInstance {
   public lastPlaySeat: number = 0;
   public pendingDut3BichPlayerId: string | null = null;
   public firstGame: boolean = false;
+  public previousWinnerId: string | null = null;
   public lowestCardDealt: Card | null = null;
   public priorChopEntries: ScoreLedgerEntry[] = [];
   public recentPlays: PublicTablePlay[] = [];
@@ -105,6 +108,7 @@ export class GameInstance {
   private timerHandle: NodeJS.Timeout | null = null;
   private config: RulesConfig = defaultRulesConfig;
   private onStateChange: () => void;
+  public onAutoKickOfflinePlayer?: (playerId: string, reason: string) => void;
 
   constructor(options: {
     id: string;
@@ -114,12 +118,15 @@ export class GameInstance {
     firstGame?: boolean;
     previousWinnerId?: string | null;
     onStateChange: () => void;
+    onAutoKickOfflinePlayer?: (playerId: string, reason: string) => void;
   }) {
     this.id = options.id;
     this.roomId = options.roomId;
     this.mode = options.mode;
     this.firstGame = options.firstGame || false;
+    this.previousWinnerId = options.previousWinnerId || null;
     this.onStateChange = options.onStateChange;
+    this.onAutoKickOfflinePlayer = options.onAutoKickOfflinePlayer;
 
     this.players = options.players.map(p => ({
       ...p,
@@ -127,6 +134,8 @@ export class GameInstance {
       hasPlayedCard: false,
       hasPassed: false,
       isOnline: true,
+      offlineSince: null,
+      offlineAutoTurns: 0,
     }));
   }
 
@@ -173,12 +182,16 @@ export class GameInstance {
       return;
     }
 
-    // 3. Regular opening turn
-    // If first game: player with lowest card opens
-    if (this.firstGame) {
-      this.currentTurnIndex = lowestPlayerIdx;
+    // 3. Opening turn:
+    // If not first game and previous winner is still in the room, previous winner opens!
+    const prevWinnerIdx = this.previousWinnerId
+      ? this.players.findIndex(p => p.id === this.previousWinnerId)
+      : -1;
+
+    if (!this.firstGame && prevWinnerIdx !== -1) {
+      this.currentTurnIndex = prevWinnerIdx;
     } else {
-      // Rule 12.4: if multiple winners or default, player with lowest card opens
+      // First game or winner not found: player with lowest card opens
       this.currentTurnIndex = lowestPlayerIdx;
     }
 
@@ -207,6 +220,24 @@ export class GameInstance {
   private async handleTurnTimeout(): Promise<void> {
     if (this.phase !== 'playing') return;
     const currentP = this.players[this.currentTurnIndex];
+
+    // If player is offline, count auto turn and check auto-kick condition
+    if (!currentP.isOnline) {
+      currentP.offlineAutoTurns = (currentP.offlineAutoTurns || 0) + 1;
+      const isOver3Mins = currentP.offlineSince && Date.now() - currentP.offlineSince >= 3 * 60 * 1000;
+      const isOver2AutoTurns = currentP.offlineAutoTurns >= 2;
+
+      if (isOver2AutoTurns || isOver3Mins) {
+        const reason = isOver2AutoTurns
+          ? `${currentP.displayName} bị out quá 2 lượt tự động và bị kick khỏi phòng`
+          : `${currentP.displayName} bị out quá 3 phút và bị kick khỏi phòng`;
+
+        if (this.onAutoKickOfflinePlayer) {
+          this.onAutoKickOfflinePlayer(currentP.id, reason);
+          return;
+        }
+      }
+    }
 
     // If table is empty (opening new round), auto-play lowest valid single card
     if (!this.currentCombo) {
@@ -592,8 +623,64 @@ export class GameInstance {
     const p = this.players.find(player => player.id === playerId);
     if (p) {
       p.isOnline = isOnline;
+      if (isOnline) {
+        p.offlineSince = null;
+        p.offlineAutoTurns = 0;
+      } else {
+        p.offlineSince = p.offlineSince || Date.now();
+      }
       this.stateVersion++;
       this.onStateChange();
     }
+  }
+
+  public async removePlayer(playerId: string, reason?: string): Promise<void> {
+    const pIdx = this.players.findIndex(p => p.id === playerId);
+    if (pIdx === -1) return;
+
+    const removedPlayer = this.players[pIdx];
+
+    // If game ended, just remove from players array
+    if (this.phase !== 'playing') {
+      this.players.splice(pIdx, 1);
+      return;
+    }
+
+    const remaining = this.players.filter(p => p.id !== playerId);
+
+    if (remaining.length <= 1) {
+      // Only 1 player left: they win immediately!
+      const winner = remaining[0];
+      await this.endGame({
+        endReason: 'normal',
+        endReasonText: `${removedPlayer.displayName} đã bị kick khỏi phòng. ${winner ? winner.displayName : ''} giành chiến thắng!`,
+        winnerIds: winner ? [winner.id] : [],
+      });
+      return;
+    }
+
+    const wasTurn = this.currentTurnIndex === pIdx;
+    const wasComboPlayer = this.currentComboPlayerId === playerId;
+
+    this.players.splice(pIdx, 1);
+
+    if (wasComboPlayer) {
+      this.currentCombo = null;
+      this.currentComboPlayerId = null;
+      for (const p of this.players) {
+        p.hasPassed = false;
+      }
+    }
+
+    if (this.currentTurnIndex >= this.players.length) {
+      this.currentTurnIndex = 0;
+    }
+
+    if (wasTurn) {
+      this.resetTurnTimer();
+    }
+
+    this.stateVersion++;
+    this.onStateChange();
   }
 }

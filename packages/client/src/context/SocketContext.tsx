@@ -21,6 +21,7 @@ export interface RoomClientView {
     isReady: boolean;
     isOnline: boolean;
   } | null)[];
+  nextGameAutoStartTime?: number | null;
   gameState?: {
     gameId: string;
     roomId: string;
@@ -62,6 +63,7 @@ interface SocketContextType {
   playCards: (cardIds: string[]) => Promise<{ success: boolean; error?: string }>;
   passTurn: () => Promise<{ success: boolean; error?: string }>;
   nextGame: () => Promise<{ success: boolean; error?: string }>;
+  kickPlayer: (targetUserId: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 const SocketContext = createContext<SocketContextType | null>(null);
@@ -128,6 +130,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
 
       setRoomState(view);
+    });
+
+    s.on('kicked_from_room', (data: { reason?: string }) => {
+      alert(data.reason || 'Bạn đã bị mời ra khỏi phòng');
+      setRoomState(null);
+      window.location.href = '/';
     });
 
     setSocket(s);
@@ -250,6 +258,18 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
+  const kickPlayer = (targetUserId: string): Promise<{ success: boolean; error?: string }> => {
+    return new Promise((resolve) => {
+      if (!socket || !roomState) {
+        resolve({ success: false, error: 'Chưa vào phòng' });
+        return;
+      }
+      socket.emit('kick_player', { roomCode: roomState.code, targetUserId }, (res: any) => {
+        resolve(res);
+      });
+    });
+  };
+
   return (
     <SocketContext.Provider
       value={{
@@ -264,6 +284,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         playCards,
         passTurn,
         nextGame,
+        kickPlayer,
       }}
     >
       {children}

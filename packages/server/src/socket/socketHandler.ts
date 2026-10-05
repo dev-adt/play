@@ -163,7 +163,7 @@ export function setupSocketServer(io: Server) {
       if (callback) callback(res);
     });
 
-    // Next game (return to lobby)
+    // Next game (return to lobby or start next round immediately)
     socket.on('next_game', async (data: { roomCode: string }, callback?: (res: any) => void) => {
       const room = await roomManager.getOrLoadRoomByCode(data.roomCode);
       if (!room) {
@@ -172,6 +172,29 @@ export function setupSocketServer(io: Server) {
       }
 
       const res = room.nextGame(user.userId);
+      if (callback) callback(res);
+    });
+
+    // Kick player
+    socket.on('kick_player', async (data: { roomCode: string; targetUserId: string }, callback?: (res: any) => void) => {
+      const room = await roomManager.getOrLoadRoomByCode(data.roomCode);
+      if (!room) {
+        if (callback) callback({ success: false, error: 'Phòng không tồn tại' });
+        return;
+      }
+
+      const targetMember = room.getMemberByUserId(data.targetUserId);
+      const targetSocketId = targetMember?.socketId;
+
+      const res = await room.kickPlayer(user.userId, data.targetUserId);
+      if (res.success && targetSocketId) {
+        const targetSocket = io.sockets.sockets.get(targetSocketId);
+        if (targetSocket) {
+          targetSocket.emit('kicked_from_room', { reason: 'Bạn đã bị chủ phòng mời ra khỏi phòng' });
+          targetSocket.leave(`room:${room.code}`);
+        }
+      }
+
       if (callback) callback(res);
     });
 
