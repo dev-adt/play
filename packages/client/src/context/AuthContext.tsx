@@ -26,6 +26,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
   register: (username: string, password: string, displayName: string) => Promise<{ success: boolean; error?: string }>;
+  guestLogin: (displayName?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   refreshStats: () => Promise<void>;
 }
@@ -125,6 +126,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const guestLogin = async (displayName?: string) => {
+    try {
+      const res = await fetch('/api/auth/guest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ displayName }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, error: data.error || 'Chơi nhanh thất bại' };
+      }
+      setUser(data.user);
+      setToken(data.token);
+      setStats(data.stats);
+      localStorage.setItem('tienlen_token', data.token);
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Lỗi mạng khi chơi nhanh' };
+    }
+  };
+
   const logout = () => {
     setUser(null);
     setToken(null);
@@ -135,7 +157,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider
-      value={{ user, token, stats, isLoading, login, register, logout, refreshStats }}
+      value={{ user, token, stats, isLoading, login, register, guestLogin, logout, refreshStats }}
     >
       {children}
     </AuthContext.Provider>

@@ -181,4 +181,63 @@ describe('Server & API Integration Tests', () => {
       socket.on('connect_error', (err) => reject(err));
     });
   });
+
+  it('POST /api/auth/guest creates instant guest account', async () => {
+    const res = await fetch(`${baseUrl}/api/auth/guest`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ displayName: 'Khách VIP' }),
+    });
+
+    expect(res.status).toBe(201);
+    const data = await res.json();
+    expect(data.user.displayName).toBe('Khách VIP');
+    expect(data.token).toBeDefined();
+  });
+
+  it('GET /api/rooms lists public rooms and supports quick-join', async () => {
+    // 1. Guest creates a 2-player room
+    const guestRes = await fetch(`${baseUrl}/api/auth/guest`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ displayName: 'Player 2P' }),
+    });
+    const { token } = await guestRes.json();
+
+    const createRes = await fetch(`${baseUrl}/api/rooms/create`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        name: 'Bàn Đôi 1v1',
+        mode: 'basic',
+        maxPlayers: 2,
+      }),
+    });
+    const { room } = await createRes.json();
+    expect(room.maxPlayers).toBe(2);
+
+    // 2. GET /api/rooms should list it
+    const listRes = await fetch(`${baseUrl}/api/rooms`);
+    const listData = await listRes.json();
+    expect(Array.isArray(listData.rooms)).toBe(true);
+    const found = listData.rooms.find((r: any) => r.code === room.code);
+    expect(found).toBeDefined();
+    expect(found.maxPlayers).toBe(2);
+
+    // 3. Quick join should be able to join an open room or create one
+    const qRes = await fetch(`${baseUrl}/api/rooms/quick-join`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ mode: 'basic', maxPlayers: 2 }),
+    });
+    expect(qRes.status).toBe(200);
+    const qData = await qRes.json();
+    expect(qData.room).toBeDefined();
+  });
 });

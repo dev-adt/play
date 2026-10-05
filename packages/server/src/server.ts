@@ -96,6 +96,49 @@ export function createServer() {
     }
   });
 
+  // Guest Quick Play Auth
+  app.post('/api/auth/guest', async (req: Request, res: Response) => {
+    try {
+      const guestNum = Math.floor(1000 + Math.random() * 9000);
+      const username = `guest_${Date.now() % 1000000}_${guestNum}`;
+      const displayName = req.body.displayName?.trim() || `Khách ${guestNum}`;
+      const dummyPassword = crypto.randomUUID();
+      const passwordHash = await hashPassword(dummyPassword);
+      const userId = `u_${crypto.randomBytes(8).toString('hex')}`;
+
+      const newUser = await db.createUser({
+        id: userId,
+        username,
+        display_name: displayName,
+        password_hash: passwordHash,
+      });
+
+      const tokenPayload = {
+        userId: newUser.id,
+        username: newUser.username,
+        displayName: newUser.display_name,
+      };
+      const token = generateToken(tokenPayload);
+
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: config.isProduction,
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+
+      const stats = await db.getPlayerStats(newUser.id);
+      res.status(201).json({
+        user: tokenPayload,
+        token,
+        stats,
+      });
+    } catch (err: any) {
+      console.error('Guest auth error:', err);
+      res.status(500).json({ error: 'Không thể tạo phiên khách' });
+    }
+  });
+
   app.post('/api/auth/login', async (req: Request, res: Response) => {
     try {
       const { username, password } = req.body;
@@ -207,6 +250,65 @@ export function createServer() {
     } catch (err: any) {
       console.error('Create room error:', err);
       res.status(500).json({ error: 'Không thể tạo phòng, vui lòng thử lại' });
+    }
+  });
+
+  app.get('/api/rooms', async (_req: Request, res: Response) => {
+    try {
+      const rooms = roomManager.listPublicRooms();
+      res.json({ rooms });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/rooms/quick-join', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { mode, maxPlayers } = req.body;
+      const gameMode = mode === 'fund' ? 'fund' : 'basic';
+      const maxP = maxPlayers && maxPlayers >= 2 && maxPlayers <= 4 ? parseInt(maxPlayers, 10) : undefined;
+
+      // 1. Try to find open room
+      const openRoom = roomManager.findOpenRoom(gameMode, maxP);
+      if (openRoom) {
+        res.json({
+          room: {
+            id: openRoom.id,
+            code: openRoom.code,
+            name: openRoom.name,
+            mode: openRoom.mode,
+            maxPlayers: openRoom.maxPlayers,
+            hasPassword: false,
+          },
+        });
+        return;
+      }
+
+      // 2. Otherwise auto-create a quick match room
+      const newRoom = await roomManager.createRoom({
+        name: `Bàn Chơi Nhanh #${Math.floor(100 + Math.random() * 900)}`,
+        mode: gameMode,
+        maxPlayers: maxP || 4,
+        owner: {
+          id: req.user!.userId,
+          username: req.user!.username,
+          displayName: req.user!.displayName,
+        },
+      });
+
+      res.json({
+        room: {
+          id: newRoom.id,
+          code: newRoom.code,
+          name: newRoom.name,
+          mode: newRoom.mode,
+          maxPlayers: newRoom.maxPlayers,
+          hasPassword: false,
+        },
+      });
+    } catch (err: any) {
+      console.error('Quick join error:', err);
+      res.status(500).json({ error: 'Không thể vào phòng nhanh, vui lòng thử lại' });
     }
   });
 

@@ -1,146 +1,517 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { PlusCircle, LogIn, ArrowRight, ShieldCheck, Flame, Trophy } from 'lucide-react';
+import {
+  BookOpen,
+  Users,
+  MessageSquare,
+  Menu,
+  Plus,
+  ArrowLeft,
+  Sparkles,
+  Trophy,
+  Gift,
+  Play,
+  UserPlus,
+  Coins,
+  LogOut,
+  LogIn,
+} from 'lucide-react';
 import { AuthModal } from '../components/AuthModal';
 import { CreateRoomModal } from '../components/CreateRoomModal';
+import { RoomBrowserModal } from '../components/RoomBrowserModal';
+import { JoinFriendModal } from '../components/JoinFriendModal';
+import { RulesModal } from '../components/RulesModal';
 
 interface HomePageProps {
   onNavigateToRoom: (roomCode: string) => void;
 }
 
 export const HomePage: React.FC<HomePageProps> = ({ onNavigateToRoom }) => {
-  const { user, stats } = useAuth();
+  const { user, stats, token, logout, guestLogin } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
-  const [joinCode, setJoinCode] = useState('');
+  const [showBrowser, setShowBrowser] = useState(false);
+  const [showJoinFriend, setShowJoinFriend] = useState(false);
+  const [showRules, setShowRules] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [quickJoining, setQuickJoining] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const handleJoin = (e: React.FormEvent) => {
-    e.preventDefault();
-    const clean = joinCode.trim().toLowerCase();
-    if (clean) {
-      onNavigateToRoom(clean);
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  // Quick Join logic
+  const handleQuickJoin = async () => {
+    setQuickJoining(true);
+    try {
+      let activeToken = token;
+      if (!user || !activeToken) {
+        // Auto-create guest session so user can play immediately without typing!
+        const guestRes = await guestLogin();
+        if (!guestRes.success) {
+          setShowAuth(true);
+          setQuickJoining(false);
+          return;
+        }
+        activeToken = localStorage.getItem('tienlen_token');
+      }
+
+      const res = await fetch('/api/rooms/quick-join', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${activeToken}`,
+        },
+        body: JSON.stringify({ mode: 'basic', maxPlayers: 4 }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.room) {
+        onNavigateToRoom(data.room.code);
+      } else {
+        showToast(data.error || 'Không thể tìm phòng chơi');
+      }
+    } catch {
+      showToast('Lỗi kết nối khi tìm phòng');
+    } finally {
+      setQuickJoining(false);
     }
   };
 
+  // Calculated display chips
+  const totalScore = stats ? stats.basic.net_score + 100000 : 100000;
+  const formattedChips =
+    totalScore >= 1000000
+      ? `${(totalScore / 1000000).toFixed(2)}M`
+      : totalScore >= 1000
+      ? `${(totalScore / 1000).toFixed(0)}K`
+      : `${totalScore}`;
+
+  const gamesCount = (stats?.basic.games_played || 0) + (stats?.fund.games_played || 0);
+  const userLevel = Math.max(1, Math.min(99, Math.floor(gamesCount / 2) + 1));
+  const expPercent = Math.min(100, (gamesCount % 2) * 50 + 25);
+
   return (
-    <div className="flex-1 w-full max-w-4xl mx-auto p-4 md:p-8 flex flex-col justify-center items-center select-none">
-      {/* Hero Brand Banner */}
-      <div className="text-center mb-8">
-        <div className="inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 px-3.5 py-1.5 rounded-full text-xs font-bold text-amber-400 mb-3 shadow">
-          <ShieldCheck size={14} /> Tiến Lên Miền Bắc Chuẩn Luật Riêng
-        </div>
-        <h1 className="text-3xl md:text-5xl font-black text-white font-display tracking-tight">
-          Chơi Cùng Bạn Bè <span className="text-amber-400">Thời Gian Thực</span>
-        </h1>
-        <p className="text-slate-400 text-sm md:text-base mt-2 max-w-md mx-auto">
-          Tạo phòng mời bằng link, giao diện mượt mà trên điện thoại và máy tính. Đầy đủ sảnh dài, đôi thông, đút 3 bích và hai chế độ điểm.
-        </p>
-      </div>
+    <div className="relative w-full min-h-screen flex flex-col justify-between select-none overflow-hidden font-display bg-gradient-to-b from-[#1b5e20] via-[#004d40] to-[#0d2a23]">
+      {/* Tropical Island Game Backdrop */}
+      <div
+        className="absolute inset-0 pointer-events-none opacity-40 bg-cover bg-center"
+        style={{
+          backgroundImage:
+            'radial-gradient(ellipse at 50% 20%, rgba(255,255,255,0.18) 0%, rgba(0,0,0,0.65) 100%), linear-gradient(180deg, #38bdf8 0%, #0284c7 40%, #0d9488 75%, #14532d 100%)',
+        }}
+      />
 
-      {/* Two Stats Panels (Section 6.1) */}
-      {user && stats && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-xl mb-8">
-          {/* Basic Card */}
-          <div className="glass-panel p-4 rounded-2xl border-emerald-500/30 relative overflow-hidden">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
-                Chế độ Basic
-              </span>
-              <Trophy size={16} className="text-emerald-400" />
-            </div>
-            <div className="text-2xl md:text-3xl font-black font-display text-white">
-              {stats.basic.net_score >= 0 ? `+${stats.basic.net_score}` : stats.basic.net_score}
-              <span className="text-xs font-normal text-slate-400 ml-1.5">điểm ròng</span>
-            </div>
-            <div className="text-xs text-slate-400 mt-1">
-              Thắng <strong>{stats.basic.wins}</strong> / {stats.basic.games_played} ván
-            </div>
-          </div>
+      {/* Decorative Cloud & Island SVG Elements */}
+      <div className="absolute top-0 inset-x-0 h-40 pointer-events-none opacity-30 bg-gradient-to-b from-white/20 to-transparent"></div>
 
-          {/* Fund Card */}
-          <div className="glass-panel p-4 rounded-2xl border-red-500/30 relative overflow-hidden">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-red-400 uppercase tracking-wider">
-                Chế độ Góp Quỹ
-              </span>
-              <Flame size={16} className="text-red-400" />
-            </div>
-            <div className="text-2xl md:text-3xl font-black font-display text-white">
-              <span className="text-red-400">
-                {stats.fund.total_negative < 0 ? stats.fund.total_negative : 0}
-              </span>
-              <span className="text-xs font-normal text-slate-400 ml-1.5">điểm phạt</span>
-            </div>
-            <div className="text-xs text-slate-400 mt-1">
-              Thắng <strong>{stats.fund.wins}</strong> / {stats.fund.games_played} ván
-            </div>
-          </div>
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-black/85 border border-amber-400 text-amber-200 px-5 py-2.5 rounded-full text-xs font-bold shadow-2xl animate-bounce flex items-center gap-2">
+          <Sparkles size={16} className="text-yellow-400" />
+          {toastMessage}
         </div>
       )}
 
-      {/* Main Action Buttons & Input */}
-      <div className="w-full max-w-md space-y-4">
-        {user ? (
-          <>
-            <button
-              onClick={() => setShowCreate(true)}
-              className="w-full btn-gold py-3.5 text-base shadow-lg"
+      {/* ======================================================== */}
+      {/* 1. TOP BAR (Matching Image 3) */}
+      {/* ======================================================== */}
+      <header className="relative z-30 w-full px-3 md:px-6 py-2.5 flex items-center justify-between">
+        {/* Left: Exit/Back + User Profile Widget */}
+        <div className="flex items-center gap-2.5">
+          {/* Exit/Back button (Purple glossy circle) */}
+          <button
+            onClick={() => showToast('Bạn đang ở sảnh chính')}
+            className="w-9 h-9 rounded-full bg-gradient-to-b from-[#9c27b0] to-[#6a1b9a] border-2 border-[#ce93d8]/80 text-white flex items-center justify-center shadow-lg active:scale-95 transition cursor-pointer"
+            title="Thoát"
+          >
+            <ArrowLeft size={18} strokeWidth={2.5} />
+          </button>
+
+          {/* User Profile Pill */}
+          {user ? (
+            <div
+              onClick={() => setShowUserMenu(!showUserMenu)}
+              className="relative flex items-center bg-black/55 backdrop-blur-md border-2 border-amber-400/50 rounded-full pl-1 pr-3 py-1 gap-2 cursor-pointer hover:border-amber-300 transition shadow-lg"
             >
-              <PlusCircle size={20} />
-              Tạo Bàn Chơi Mới
-            </button>
+              {/* Avatar with gold ring */}
+              <div className="relative">
+                <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-amber-300 bg-gradient-to-tr from-amber-600 to-yellow-400 flex items-center justify-center text-white font-black text-sm shadow">
+                  {user.displayName.charAt(0).toUpperCase()}
+                </div>
+                {/* Level badge */}
+                <div className="absolute -bottom-1 -left-1 bg-gradient-to-r from-amber-500 to-yellow-400 text-amber-950 font-black text-[9px] px-1.5 py-0.2 rounded-full border border-white shadow">
+                  {userLevel}★
+                </div>
+              </div>
 
-            <div className="relative flex py-2 items-center">
-              <div className="flex-grow border-t border-slate-800"></div>
-              <span className="flex-shrink mx-4 text-xs text-slate-500 uppercase tracking-wider">
-                Hoặc vào bàn có sẵn
-              </span>
-              <div className="flex-grow border-t border-slate-800"></div>
+              {/* Name & EXP Bar */}
+              <div className="flex flex-col min-w-[70px]">
+                <span className="text-xs font-black text-white truncate max-w-[90px] drop-shadow">
+                  {user.displayName}
+                </span>
+                <div className="w-full bg-black/60 rounded-full h-2 overflow-hidden border border-emerald-500/50 mt-0.5">
+                  <div
+                    className="bg-gradient-to-r from-emerald-400 to-green-300 h-full rounded-full transition-all"
+                    style={{ width: `${expPercent}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* User Dropdown Menu */}
+              {showUserMenu && (
+                <div className="absolute top-12 left-0 w-48 bg-[#1f1013] border-2 border-amber-500/50 rounded-2xl shadow-2xl p-2 z-50 text-xs space-y-1">
+                  <div className="p-2 border-b border-amber-500/20 text-amber-200 font-bold">
+                    Tài khoản: {user.username}
+                  </div>
+                  <button
+                    onClick={e => {
+                      e.stopPropagation();
+                      setShowUserMenu(false);
+                      showToast(`Điểm ròng Basic: ${stats?.basic.net_score || 0} điểm`);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-xl text-slate-200 hover:bg-amber-500/20 font-bold flex items-center gap-2"
+                  >
+                    <Trophy size={14} className="text-amber-400" /> Thành tích
+                  </button>
+                  <button
+                    onClick={e => {
+                      e.stopPropagation();
+                      setShowUserMenu(false);
+                      logout();
+                      showToast('Đã đăng xuất tài khoản');
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-xl text-red-300 hover:bg-red-500/20 font-bold flex items-center gap-2"
+                  >
+                    <LogOut size={14} /> Đăng xuất
+                  </button>
+                </div>
+              )}
             </div>
-
-            <form onSubmit={handleJoin} className="flex gap-2">
-              <input
-                type="text"
-                value={joinCode}
-                onChange={e => setJoinCode(e.target.value)}
-                placeholder="Nhập mã bàn (ví dụ: a1b2c3d4)..."
-                className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-400 font-mono tracking-wider"
-              />
-              <button
-                type="submit"
-                disabled={!joinCode.trim()}
-                className="btn-secondary px-5"
-              >
-                <ArrowRight size={18} />
-              </button>
-            </form>
-          </>
-        ) : (
-          <div className="glass-panel p-6 rounded-2xl text-center space-y-4">
-            <h3 className="text-base font-bold text-white">
-              Đăng nhập để tạo bàn và lưu thống kê điểm
-            </h3>
-            <p className="text-xs text-slate-400">
-              Đăng ký tài khoản nhanh chóng chỉ với tên đăng nhập và mật khẩu.
-            </p>
+          ) : (
             <button
               onClick={() => setShowAuth(true)}
-              className="w-full btn-gold py-3 text-sm"
+              className="flex items-center gap-1.5 bg-gradient-to-r from-amber-400 to-amber-600 text-amber-950 font-black text-xs px-3.5 py-2 rounded-full border-2 border-amber-200 shadow-lg active:scale-95 transition"
             >
-              <LogIn size={18} />
-              Đăng Nhập / Đăng Ký
+              <LogIn size={15} /> Đăng Nhập
+            </button>
+          )}
+
+          {/* Gold Coin Balance Pill */}
+          <div className="flex items-center bg-black/55 backdrop-blur-md border-2 border-amber-400/60 rounded-full pl-2 pr-1 py-1 gap-1.5 shadow-lg">
+            <Coins size={18} className="text-yellow-400 fill-yellow-400 drop-shadow" />
+            <span className="text-xs font-black text-yellow-300 tracking-wider font-mono">
+              {formattedChips}
+            </span>
+            <button
+              onClick={() => showToast('Nhận thưởng hàng ngày: +50,000 Xu thành công!')}
+              className="w-6 h-6 rounded-full bg-gradient-to-b from-emerald-400 to-green-600 text-white flex items-center justify-center font-black shadow hover:brightness-110 active:scale-90 transition ml-1"
+              title="Nạp / Nhận xu miễn phí"
+            >
+              <Plus size={14} strokeWidth={3} />
             </button>
           </div>
-        )}
-      </div>
+        </div>
 
+        {/* Right: Action Buttons (Glossy Purple Round Buttons) */}
+        <div className="flex items-center gap-2">
+          {/* Rules / Book button */}
+          <button
+            onClick={() => setShowRules(true)}
+            className="w-9 h-9 rounded-full bg-gradient-to-b from-[#9c27b0] to-[#6a1b9a] border-2 border-[#ce93d8]/80 text-white flex items-center justify-center shadow-lg active:scale-95 transition hover:brightness-110"
+            title="Luật chơi"
+          >
+            <BookOpen size={17} />
+          </button>
+
+          {/* Friends button */}
+          <button
+            onClick={() => setShowJoinFriend(true)}
+            className="w-9 h-9 rounded-full bg-gradient-to-b from-[#9c27b0] to-[#6a1b9a] border-2 border-[#ce93d8]/80 text-white flex items-center justify-center shadow-lg active:scale-95 transition hover:brightness-110"
+            title="Bạn bè / Mời chơi"
+          >
+            <Users size={17} />
+          </button>
+
+          {/* Messages button with badge */}
+          <div className="relative">
+            <button
+              onClick={() => showToast('Hòm thư: Chào mừng bạn đến với Tiến Lên Miền Bắc!')}
+              className="w-9 h-9 rounded-full bg-gradient-to-b from-[#9c27b0] to-[#6a1b9a] border-2 border-[#ce93d8]/80 text-white flex items-center justify-center shadow-lg active:scale-95 transition hover:brightness-110"
+              title="Tin nhắn"
+            >
+              <MessageSquare size={17} />
+            </button>
+            <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-600 text-white text-[9px] font-black flex items-center justify-center border border-white shadow">
+              1
+            </div>
+          </div>
+
+          {/* Menu button */}
+          <button
+            onClick={() => (user ? setShowUserMenu(!showUserMenu) : setShowAuth(true))}
+            className="w-9 h-9 rounded-full bg-gradient-to-b from-[#9c27b0] to-[#6a1b9a] border-2 border-[#ce93d8]/80 text-white flex items-center justify-center shadow-lg active:scale-95 transition hover:brightness-110"
+            title="Menu"
+          >
+            <Menu size={17} />
+          </button>
+        </div>
+      </header>
+
+      {/* ======================================================== */}
+      {/* 2. CENTER LOBBY CARDS (Matching Image 3) */}
+      {/* 3 Large, Glossy, Rich 3D Cards: Chơi nhanh / Chơi với bạn / Chọn bàn */}
+      {/* ======================================================== */}
+      <main className="relative z-20 w-full max-w-5xl mx-auto px-4 py-4 flex-1 flex flex-col items-center justify-center">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-8 w-full max-w-4xl">
+          {/* ---------------- CARD 1: CHƠI NHANH (Amber/Orange) ---------------- */}
+          <div
+            onClick={handleQuickJoin}
+            className="group relative cursor-pointer rounded-3xl p-1 bg-gradient-to-b from-amber-300 via-amber-500 to-yellow-600 shadow-[0_12px_30px_rgba(245,158,11,0.45)] hover:shadow-[0_16px_40px_rgba(245,158,11,0.65)] hover:-translate-y-2 active:scale-95 transition-all duration-300 overflow-hidden"
+          >
+            <div className="relative rounded-[22px] bg-gradient-to-b from-[#ffb74d] via-[#f57c00] to-[#e65100] h-72 md:h-84 p-5 flex flex-col justify-between items-center text-center overflow-hidden border-2 border-white/40">
+              {/* Glossy Reflection overlay */}
+              <div className="absolute -top-12 -left-12 w-44 h-44 bg-white/20 rounded-full blur-xl pointer-events-none"></div>
+
+              {/* Graphic Icon / Chips & Cards Illustration */}
+              <div className="relative mt-4 flex items-center justify-center scale-110 group-hover:scale-125 transition-transform duration-300">
+                {/* Poker chip back */}
+                <div className="w-24 h-24 rounded-full border-4 border-dashed border-white/60 bg-gradient-to-br from-red-600 to-red-800 shadow-xl flex items-center justify-center">
+                  <div className="w-14 h-14 rounded-full bg-red-900 border border-white/40 flex items-center justify-center text-white font-black text-xs">
+                    TLMB
+                  </div>
+                </div>
+                {/* Two Cards angled */}
+                <div className="absolute -left-3 bottom-0 w-14 h-20 bg-white rounded-lg shadow-2xl border border-slate-300 -rotate-12 flex flex-col p-1">
+                  <span className="text-red-600 font-black text-xs leading-none">2♥</span>
+                </div>
+                <div className="absolute -right-3 bottom-0 w-14 h-20 bg-white rounded-lg shadow-2xl border border-slate-300 rotate-12 flex flex-col p-1 items-end">
+                  <span className="text-black font-black text-xs leading-none">3♠</span>
+                </div>
+              </div>
+
+              {/* Title & Banner */}
+              <div className="w-full mt-auto mb-2">
+                <div className="text-2xl md:text-3xl font-black text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] tracking-wide">
+                  Chơi nhanh
+                </div>
+                <p className="text-xs text-amber-100/90 font-medium mt-1">
+                  {quickJoining ? 'Đang ghép phòng...' : 'Ghép bàn & vào chơi tức thì'}
+                </p>
+              </div>
+
+              {/* Action Button Badge */}
+              <div className="w-full bg-gradient-to-r from-yellow-300 to-amber-400 text-amber-950 font-black text-xs py-2 rounded-xl shadow-lg border border-white/50 tracking-wider">
+                {quickJoining ? 'ĐANG VÀO...' : 'VÀO CHƠI NGAY'}
+              </div>
+            </div>
+          </div>
+
+          {/* ---------------- CARD 2: CHƠI VỚI BẠN (Royal Blue) ---------------- */}
+          <div
+            onClick={() => setShowJoinFriend(true)}
+            className="group relative cursor-pointer rounded-3xl p-1 bg-gradient-to-b from-blue-300 via-blue-500 to-indigo-700 shadow-[0_12px_30px_rgba(59,130,246,0.45)] hover:shadow-[0_16px_40px_rgba(59,130,246,0.65)] hover:-translate-y-2 active:scale-95 transition-all duration-300 overflow-hidden"
+          >
+            <div className="relative rounded-[22px] bg-gradient-to-b from-[#42a5f5] via-[#1976d2] to-[#0d47a1] h-72 md:h-84 p-5 flex flex-col justify-between items-center text-center overflow-hidden border-2 border-white/40">
+              {/* Glossy Reflection overlay */}
+              <div className="absolute -top-12 -left-12 w-44 h-44 bg-white/20 rounded-full blur-xl pointer-events-none"></div>
+
+              {/* Graphic Icon: Gold 3D "VS" + Poker Chips */}
+              <div className="relative mt-4 flex items-center justify-center scale-110 group-hover:scale-125 transition-transform duration-300">
+                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-indigo-800 to-blue-900 border-4 border-cyan-300/40 shadow-xl flex items-center justify-center">
+                  {/* Big Gold 3D VS */}
+                  <span className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-200 via-amber-400 to-yellow-600 drop-shadow-[0_3px_5px_rgba(0,0,0,0.9)] italic">
+                    VS
+                  </span>
+                </div>
+                {/* Floating Chips & Cards */}
+                <div className="absolute -bottom-2 -left-2 w-9 h-9 rounded-full bg-amber-500 border-2 border-white shadow"></div>
+                <div className="absolute -top-1 -right-2 w-8 h-8 rounded-full bg-red-600 border-2 border-white shadow"></div>
+              </div>
+
+              {/* Title & Banner */}
+              <div className="w-full mt-auto mb-2">
+                <div className="text-2xl md:text-3xl font-black text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] tracking-wide">
+                  Chơi với bạn
+                </div>
+                <p className="text-xs text-blue-100/90 font-medium mt-1">
+                  Tạo phòng riêng, chia sẻ link mời
+                </p>
+              </div>
+
+              {/* Action Button Badge */}
+              <div className="w-full bg-gradient-to-r from-cyan-300 to-blue-400 text-blue-950 font-black text-xs py-2 rounded-xl shadow-lg border border-white/50 tracking-wider">
+                MỜI BẠN BÈ
+              </div>
+            </div>
+          </div>
+
+          {/* ---------------- CARD 3: CHỌN BÀN (Magenta / Crimson) ---------------- */}
+          <div
+            onClick={() => setShowBrowser(true)}
+            className="group relative cursor-pointer rounded-3xl p-1 bg-gradient-to-b from-pink-400 via-rose-500 to-purple-800 shadow-[0_12px_30px_rgba(244,63,94,0.45)] hover:shadow-[0_16px_40px_rgba(244,63,94,0.65)] hover:-translate-y-2 active:scale-95 transition-all duration-300 overflow-hidden"
+          >
+            <div className="relative rounded-[22px] bg-gradient-to-b from-[#ec407a] via-[#c2185b] to-[#880e4f] h-72 md:h-84 p-5 flex flex-col justify-between items-center text-center overflow-hidden border-2 border-white/40">
+              {/* Glossy Reflection overlay */}
+              <div className="absolute -top-12 -left-12 w-44 h-44 bg-white/20 rounded-full blur-xl pointer-events-none"></div>
+
+              {/* Graphic Icon: Casino Table + 4 Aces */}
+              <div className="relative mt-4 flex items-center justify-center scale-110 group-hover:scale-125 transition-transform duration-300">
+                {/* Oval mini table */}
+                <div className="w-28 h-18 rounded-[28px] bg-gradient-to-b from-[#7f0000] to-[#400000] border-3 border-amber-400 shadow-2xl flex items-center justify-center relative">
+                  <div className="flex -space-x-2">
+                    <div className="w-6 h-9 bg-white rounded shadow text-[9px] font-black text-black flex items-center justify-center">
+                      A♠
+                    </div>
+                    <div className="w-6 h-9 bg-white rounded shadow text-[9px] font-black text-red-600 flex items-center justify-center">
+                      A♥
+                    </div>
+                    <div className="w-6 h-9 bg-white rounded shadow text-[9px] font-black text-black flex items-center justify-center">
+                      A♣
+                    </div>
+                    <div className="w-6 h-9 bg-white rounded shadow text-[9px] font-black text-red-600 flex items-center justify-center">
+                      A♦
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Title & Banner */}
+              <div className="w-full mt-auto mb-2">
+                <div className="text-2xl md:text-3xl font-black text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] tracking-wide">
+                  Chọn bàn
+                </div>
+                <p className="text-xs text-pink-100/90 font-medium mt-1">
+                  Duyệt phòng 2 người, 4 người, tự do chọn
+                </p>
+              </div>
+
+              {/* Action Button Badge */}
+              <div className="w-full bg-gradient-to-r from-pink-300 to-rose-400 text-rose-950 font-black text-xs py-2 rounded-xl shadow-lg border border-white/50 tracking-wider">
+                DANH SÁCH BÀN
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      {/* ======================================================== */}
+      {/* 3. BOTTOM BAR (Matching Image 3) */}
+      {/* ======================================================== */}
+      <footer className="relative z-30 w-full px-3 md:px-8 py-3 flex items-center justify-between">
+        {/* Left: Add Friend + Gift Claim Button */}
+        <div className="flex items-center gap-2.5">
+          {/* Add Friend (Purple circle) */}
+          <button
+            onClick={() => setShowJoinFriend(true)}
+            className="w-10 h-10 rounded-full bg-gradient-to-b from-[#9c27b0] to-[#6a1b9a] border-2 border-[#ce93d8]/80 text-white flex items-center justify-center shadow-lg active:scale-95 transition hover:brightness-110"
+            title="Thêm bạn bè"
+          >
+            <UserPlus size={18} />
+          </button>
+
+          {/* Daily Gift Claim with Timer Pill */}
+          <div
+            onClick={() => showToast('Quà tặng tiếp theo sẽ mở sau 13h 22m')}
+            className="flex items-center bg-black/60 backdrop-blur-md border border-amber-400/50 rounded-full pl-1 pr-3 py-1 gap-2 cursor-pointer shadow-lg hover:border-amber-300 transition"
+          >
+            <div className="w-8 h-8 rounded-full bg-gradient-to-b from-[#9c27b0] to-[#6a1b9a] border border-[#ce93d8] flex items-center justify-center text-white shadow">
+              <Gift size={16} />
+            </div>
+            <span className="text-xs font-bold text-amber-200">13h 22m</span>
+            <Coins size={15} className="text-yellow-400 fill-yellow-400" />
+          </div>
+        </div>
+
+        {/* Center: Golden Tournament Trophy Button */}
+        <div className="flex flex-col items-center">
+          <div className="relative group cursor-pointer" onClick={() => showToast('Giải đấu Mùa 1 sắp khởi tranh!')}>
+            <div className="w-14 h-14 rounded-full bg-gradient-to-b from-amber-300 via-yellow-500 to-amber-700 border-3 border-amber-200 shadow-[0_0_20px_rgba(251,191,36,0.6)] flex items-center justify-center group-hover:scale-110 active:scale-95 transition-all">
+              <Trophy size={28} className="text-amber-950 fill-amber-950" />
+            </div>
+            {/* Notification Badge */}
+            <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-600 text-white text-[10px] font-black flex items-center justify-center border-2 border-white shadow">
+              1
+            </div>
+          </div>
+          <span className="text-[11px] font-black text-yellow-300 drop-shadow mt-1">
+            Giải đấu
+          </span>
+        </div>
+
+        {/* Right: Watch Video Claim + Leaderboard Trophy */}
+        <div className="flex items-center gap-2.5">
+          {/* Watch Video Claim Pill */}
+          <div
+            onClick={() => showToast('Nhiệm vụ xem video nhận xu: Sẵn sàng sau 01h 22m')}
+            className="flex items-center bg-black/60 backdrop-blur-md border border-amber-400/50 rounded-full pl-3 pr-1 py-1 gap-2 cursor-pointer shadow-lg hover:border-amber-300 transition"
+          >
+            <Coins size={15} className="text-yellow-400 fill-yellow-400" />
+            <span className="text-xs font-bold text-amber-200">01h 22m</span>
+            <div className="relative">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-b from-[#9c27b0] to-[#6a1b9a] border border-[#ce93d8] flex items-center justify-center text-white shadow">
+                <Play size={14} fill="white" />
+              </div>
+              <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-600 text-white text-[9px] font-black flex items-center justify-center border border-white">
+                7
+              </div>
+            </div>
+          </div>
+
+          {/* Leaderboard Trophy Button (Purple circle) */}
+          <button
+            onClick={() => showToast(`Bảng xếp hạng: Bạn đang có ${stats?.basic.wins || 0} trận thắng`)}
+            className="w-10 h-10 rounded-full bg-gradient-to-b from-[#9c27b0] to-[#6a1b9a] border-2 border-[#ce93d8]/80 text-white flex items-center justify-center shadow-lg active:scale-95 transition hover:brightness-110"
+            title="Bảng xếp hạng"
+          >
+            <Trophy size={18} />
+          </button>
+        </div>
+      </footer>
+
+      {/* ======================================================== */}
+      {/* 4. MODALS */}
+      {/* ======================================================== */}
       {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
+
       {showCreate && (
         <CreateRoomModal
           onClose={() => setShowCreate(false)}
           onRoomCreated={code => onNavigateToRoom(code)}
         />
       )}
+
+      {showBrowser && (
+        <RoomBrowserModal
+          onClose={() => setShowBrowser(false)}
+          onJoinRoom={code => {
+            setShowBrowser(false);
+            onNavigateToRoom(code);
+          }}
+          onCreateNew={() => {
+            setShowBrowser(false);
+            setShowCreate(true);
+          }}
+        />
+      )}
+
+      {showJoinFriend && (
+        <JoinFriendModal
+          onClose={() => setShowJoinFriend(false)}
+          onJoinCode={code => {
+            setShowJoinFriend(false);
+            onNavigateToRoom(code);
+          }}
+          onCreateRoom={() => {
+            setShowJoinFriend(false);
+            setShowCreate(true);
+          }}
+        />
+      )}
+
+      {showRules && <RulesModal onClose={() => setShowRules(false)} />}
     </div>
   );
 };

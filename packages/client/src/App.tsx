@@ -78,12 +78,6 @@ export const App: React.FC = () => {
 
   return (
     <div className="w-full min-h-screen bg-slate-950 flex flex-col justify-between">
-      <Navbar
-        roomName={roomState?.name}
-        roomCode={currentRoomCode || undefined}
-        onLeaveRoom={handleLeaveRoom}
-      />
-
       <main className="flex-1 flex flex-col">
         {currentRoomCode ? (
           <GameRoomPage roomCode={currentRoomCode} />

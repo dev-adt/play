@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, BookOpen, CheckCircle, ShieldAlert, Award, AlertTriangle } from 'lucide-react';
+import { X, BookOpen, ShieldCheck, Flame, Award } from 'lucide-react';
 
 interface RulesModalProps {
   onClose: () => void;
@@ -8,171 +8,68 @@ interface RulesModalProps {
 export const RulesModal: React.FC<RulesModalProps> = ({ onClose }) => {
   return (
     <div className="modal-overlay">
-      <div className="modal-content max-w-2xl w-full p-6 text-slate-200">
-        <div className="flex items-center justify-between pb-4 border-b border-slate-700 mb-4">
-          <div className="flex items-center gap-2">
-            <BookOpen className="text-amber-400" size={24} />
-            <h2 className="text-xl font-black text-amber-400 font-display">
-              Luật Chơi Tiến Lên Miền Bắc
-            </h2>
+      <div className="modal-content max-w-xl w-full p-6 text-slate-100 border-2 border-amber-500/40 shadow-2xl relative overflow-hidden bg-gradient-to-b from-[#241315] via-[#1a0f12] to-[#120a0d] max-h-[85vh] flex flex-col">
+        {/* Glow Accent */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-yellow-200 to-amber-500"></div>
+
+        {/* Modal Header */}
+        <div className="flex items-center justify-between pb-3 border-b border-amber-500/20 mb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-b from-purple-500 to-indigo-700 flex items-center justify-center shadow-md">
+              <BookOpen size={18} className="text-white" />
+            </div>
+            <div>
+              <h2 className="text-xl font-black font-display text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-100 to-amber-300 tracking-wide">
+                LUẬT TIẾN LÊN MIỀN BẮC
+              </h2>
+              <p className="text-[11px] text-amber-200/60 font-medium">Quy chuẩn luật riêng & cách tính điểm</p>
+            </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+            className="w-8 h-8 rounded-full bg-black/40 border border-amber-500/20 text-amber-200 hover:text-white hover:bg-black/70 flex items-center justify-center transition"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
-        <div className="space-y-5 text-xs md:text-sm max-h-[70vh] overflow-y-auto pr-2">
-          {/* Mục 1: Bộ bài & Rank */}
-          <section className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800">
-            <h3 className="font-bold text-amber-300 text-sm mb-1.5">1. Bộ bài và Thứ tự</h3>
-            <p className="text-slate-300 leading-relaxed">
-              - 52 lá, chia mỗi người 13 lá (2-4 người chơi).<br />
-              - Rank: <strong>3 &lt; 4 &lt; 5 &lt; 6 &lt; 7 &lt; 8 &lt; 9 &lt; 10 &lt; J &lt; Q &lt; K &lt; A &lt; 2</strong>.<br />
-              - Chất: <strong>Bích ♠ &lt; Tép ♣ &lt; Rô ♦ &lt; Cơ ♥</strong>.<br />
-              - Đen: ♠♣. Đỏ: ♦♥.
-            </p>
-          </section>
-
-          {/* Mục 2: Tổ hợp & Chặn */}
-          <section className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800">
-            <h3 className="font-bold text-amber-300 text-sm mb-1.5">2. Đánh thường và Chặn</h3>
-            <ul className="list-disc pl-4 space-y-1 text-slate-300 leading-relaxed">
-              <li><strong>Lá lẻ (3-A):</strong> Chặn bằng lá cao hơn cùng chất. Lá 2 là ngoại lệ (chặn mọi 3-A không cần cùng chất).</li>
-              <li><strong>Đôi thường:</strong> Phải cùng rank và cùng màu (♠♣ hoặc ♦♥). Chặn bằng đôi rank cao hơn cùng màu.</li>
-              <li><strong>Đôi 2:</strong> Bất kỳ hai chất; chặn mọi đôi thường. So hai đôi 2 bằng chất cao nhất.</li>
-              <li><strong>Bộ ba:</strong> Cùng rank; chặn bằng bộ ba rank cao hơn và <em>đúng cùng tập hợp 3 chất</em> (Ví dụ: 8♠♦♥ chặn 5♠♦♥, không chặn 5♣♦♥). Bộ ba 2 chặn mọi bộ ba thường.</li>
-              <li><strong>Sảnh:</strong> Ít nhất 3 lá liên tiếp cùng chất, không có 2. Chặn bằng sảnh cùng số lá, cùng chất, rank cao hơn.</li>
-            </ul>
-          </section>
-
-          {/* Mục 3: Hàng và Chặt */}
-          <section className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800">
-            <h3 className="font-bold text-amber-300 text-sm mb-1.5">3. Hàng và Khả năng Chặt</h3>
-            <p className="font-semibold text-amber-400 mb-1">
-              Thứ tự sức mạnh: 5 đôi thông &gt; 4 đôi thông &gt; Sảnh dài (≥5 lá) &gt; Tứ quý &gt; 3 đôi thông
-            </p>
-            <div className="overflow-x-auto mt-2">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="bg-slate-800 text-amber-300">
-                    <th className="p-1.5 border border-slate-700">Loại Hàng</th>
-                    <th className="p-1.5 border border-slate-700">Chặt 1 lá 2</th>
-                    <th className="p-1.5 border border-slate-700">Chặt đôi 2</th>
-                    <th className="p-1.5 border border-slate-700">Chặt bộ ba 2</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800 text-slate-300">
-                  <tr>
-                    <td className="p-1.5 border border-slate-700 font-medium">3 đôi thông cùng màu</td>
-                    <td className="p-1.5 border border-slate-700 text-emerald-400 font-bold">Có</td>
-                    <td className="p-1.5 border border-slate-700 text-red-400">Không</td>
-                    <td className="p-1.5 border border-slate-700 text-red-400">Không</td>
-                  </tr>
-                  <tr>
-                    <td className="p-1.5 border border-slate-700 font-medium">Tứ quý</td>
-                    <td className="p-1.5 border border-slate-700 text-emerald-400 font-bold">Có</td>
-                    <td className="p-1.5 border border-slate-700 text-emerald-400 font-bold">Có</td>
-                    <td className="p-1.5 border border-slate-700 text-red-400">Không</td>
-                  </tr>
-                  <tr>
-                    <td className="p-1.5 border border-slate-700 font-medium">Sảnh đồng chất 5 lá</td>
-                    <td className="p-1.5 border border-slate-700 text-emerald-400 font-bold">Có</td>
-                    <td className="p-1.5 border border-slate-700 text-emerald-400 font-bold">Có</td>
-                    <td className="p-1.5 border border-slate-700 text-red-400">Không</td>
-                  </tr>
-                  <tr>
-                    <td className="p-1.5 border border-slate-700 font-medium">Sảnh đồng chất ≥6 lá</td>
-                    <td className="p-1.5 border border-slate-700 text-emerald-400 font-bold">Có</td>
-                    <td className="p-1.5 border border-slate-700 text-emerald-400 font-bold">Có</td>
-                    <td className="p-1.5 border border-slate-700 text-emerald-400 font-bold">Có</td>
-                  </tr>
-                  <tr>
-                    <td className="p-1.5 border border-slate-700 font-medium">4 đôi thông cùng màu</td>
-                    <td className="p-1.5 border border-slate-700 text-emerald-400 font-bold">Có</td>
-                    <td className="p-1.5 border border-slate-700 text-emerald-400 font-bold">Có</td>
-                    <td className="p-1.5 border border-slate-700 text-red-400">Không</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <p className="text-[11px] text-slate-400 mt-2">
-              * Chặt hàng: hàng mạnh hơn được chặt hàng yếu hơn không cần cùng màu/chất.
-            </p>
-          </section>
-
-          {/* Mục 4: Đút 3 Bích */}
-          <section className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800">
-            <h3 className="font-bold text-amber-300 text-sm mb-1.5">4. Đút 3 Bích (3♠)</h3>
-            <ul className="list-disc pl-4 space-y-1 text-slate-300 leading-relaxed">
-              <li>Đánh một tổ hợp và trên tay chỉ còn đúng 3♠: hệ thống sẽ chuyển sang trạng thái chờ đút 3♠.</li>
-              <li>Nếu tất cả đối thủ đều bỏ lượt: người đó thắng ngay, ván kết thúc, <strong>mỗi đối thủ bị trừ 26 điểm</strong>.</li>
-              <li>Nếu có đối thủ chặn hợp lệ: ván kết thúc kiểu <em>Bắt đút 3 bích</em>, người giữ 3♠ bị trừ 26 điểm, người chặn được tính thắng.</li>
-            </ul>
-          </section>
-
-          {/* Mục 5: Về 2 Cuối */}
-          <section className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800">
-            <h3 className="font-bold text-amber-300 text-sm mb-1.5">5. Xử phạt Về 2 Cuối</h3>
-            <p className="text-slate-300 leading-relaxed">
-              Nếu đánh hết bài bằng 1 lá 2, đôi 2 hoặc bộ ba 2: người đánh bị xử thua và phạt <strong>13 × k × (n - 1)</strong> điểm (k là số 2, n là số người chơi). Tất cả đối thủ được cộng ván thắng!
-            </p>
-          </section>
-
-          {/* Mục 6: Ăn Trắng */}
-          <section className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800">
-            <h3 className="font-bold text-amber-300 text-sm mb-1.5">6. Ăn Trắng (Ngay sau chia bài)</h3>
-            <ol className="list-decimal pl-4 space-y-1 text-slate-300 leading-relaxed">
-              <li>Tứ quý 2</li>
-              <li>Sảnh rồng 3–A đồng chất (12 lá liên tiếp cùng chất)</li>
-              <li>6 đôi hợp lệ (không cần thông)</li>
-              <li>5 đôi thông đồng màu</li>
-              <li>13 lá cùng màu (toàn đỏ hoặc toàn đen)</li>
-              <li>Tứ quý 3 ở ván đầu tiên của phòng</li>
-            </ol>
-            <p className="text-[11px] text-slate-400 mt-1">
-              * Ăn trắng phạt mỗi người thua 13 điểm (không phạt thối/cóng).
-            </p>
-          </section>
-
-          {/* Mục 7: Tính thối thay thế điểm lá */}
-          <section className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800">
-            <h3 className="font-bold text-amber-300 text-sm mb-1.5">7. Mức Thối Thay Thế Điểm Lá</h3>
-            <p className="text-slate-300 leading-relaxed">
-              Mức thối thay thế điểm đếm lá của chính bộ đó, <strong>không cộng chồng</strong>:<br />
-              - 1 lá thường: 1 điểm<br />
-              - 1 lá 2 đen (♠, ♣): 2 điểm<br />
-              - 1 lá 2 đỏ (♦, ♥): 4 điểm<br />
-              - 3 đôi thông: 6 điểm<br />
-              - Tứ quý: 8 điểm<br />
-              - 4 đôi thông: 8 điểm<br />
-              - Cóng (chưa đánh lá nào): <code>congScore = rotScore + 13</code>.
-            </p>
-          </section>
-
-          {/* Mục 8: Quy ước mục 12 */}
-          <section className="bg-amber-950/20 p-3.5 rounded-xl border border-amber-500/30">
-            <h3 className="font-bold text-amber-400 text-sm mb-1.5 flex items-center gap-1.5">
-              <AlertTriangle size={16} /> Quy ước cấu hình mục 12 (rulesConfig)
+        {/* Rules Content */}
+        <div className="flex-1 overflow-y-auto space-y-4 pr-1 text-xs text-amber-100/90 leading-relaxed">
+          {/* Section 1 */}
+          <div className="p-3.5 rounded-xl bg-black/40 border border-amber-500/20">
+            <h3 className="font-bold text-amber-300 text-sm mb-1.5 flex items-center gap-1.5">
+              <ShieldCheck size={16} className="text-amber-400" /> 1. Luật Chơi & Đi Bài
             </h3>
-            <ul className="list-disc pl-4 space-y-1 text-slate-300 text-xs leading-relaxed">
-              <li><strong>Sảnh dài bị chặt:</strong> Phạt 0 điểm (chưa có quy định phạt chặt sảnh dài).</li>
-              <li><strong>Sảnh dài còn trên tay:</strong> Tính 1 điểm/lá thường.</li>
-              <li><strong>Cóng kết hợp thối:</strong> Mức nền thối + 13 điểm (Ví dụ: cóng 13 lá thường = 26; có 2♠ = 27; có 2♥ = 29).</li>
-              <li><strong>Hòa ăn trắng:</strong> So giá trị bộ bài, sau đó đến ghế có quyền mở ván.</li>
-              <li><strong>Ván sau nhiều người thắng:</strong> Người giữ lá nhỏ nhất khi chia bài mở ván.</li>
-              <li><strong>Đút 3 bích:</strong> Tự động hoàn tất khi tất cả đối thủ bỏ lượt hoặc timeout.</li>
-              <li><strong>Chặn thường ưu tiên hơn chặt:</strong> Không tự sinh phạt chặt sảnh nếu đã thỏa chặn sảnh thường.</li>
+            <ul className="list-disc pl-4 space-y-1 text-slate-300">
+              <li><strong>Đồng chất - đồng màu:</strong> Đánh đôi, sảnh phải cùng màu hoặc cùng chất tùy theo bộ bài dẫn đầu.</li>
+              <li><strong>Sảnh dài:</strong> Cho phép sảnh liên tiếp từ 3 lá đến 12 lá (3 đến A). <em>Lá 2 không được ghép vào sảnh.</em></li>
+              <li><strong>Về 2 cuối ván:</strong> Tuyệt đối cấm đánh lá 2 (hoặc bộ có 2) ở lượt cuối cùng để hết bài. Người vi phạm sẽ bị xử thua phạt đền toàn bộ người chơi khác (13 điểm x số lá 2 x số đối thủ).</li>
             </ul>
-          </section>
-        </div>
+          </div>
 
-        <div className="mt-5 pt-3 border-t border-slate-700 flex justify-end">
-          <button onClick={onClose} className="btn-secondary py-2 px-6">
-            Đóng
-          </button>
+          {/* Section 2 */}
+          <div className="p-3.5 rounded-xl bg-black/40 border border-amber-500/20">
+            <h3 className="font-bold text-amber-300 text-sm mb-1.5 flex items-center gap-1.5">
+              <Flame size={16} className="text-red-400" /> 2. Chặt Hàng & Phạt Chặt
+            </h3>
+            <ul className="list-disc pl-4 space-y-1 text-slate-300">
+              <li><strong>Tứ quý:</strong> Chặt được 1 lá 2 (hoặc tứ quý nhỏ hơn). Phạt <strong>8 điểm</strong> (Tứ quý 2 phạt 12 điểm).</li>
+              <li><strong>3 đôi thông:</strong> Chặt được 1 lá 2 hoặc 3 đôi thông nhỏ hơn theo vòng lượt. Phạt <strong>6 điểm</strong>.</li>
+              <li><strong>4 đôi thông:</strong> Chặt được 1 lá 2, đôi 2, tứ quý hoặc 3 đôi thông. Phạt <strong>8 điểm</strong>.</li>
+              <li><strong>Phạt theo bộ bị chặt:</strong> 2 đen phạt 2 điểm, 2 đỏ phạt 4 điểm.</li>
+            </ul>
+          </div>
+
+          {/* Section 3 */}
+          <div className="p-3.5 rounded-xl bg-black/40 border border-amber-500/20">
+            <h3 className="font-bold text-amber-300 text-sm mb-1.5 flex items-center gap-1.5">
+              <Award size={16} className="text-yellow-400" /> 3. Đút 3 Bích & Ăn Trắng
+            </h3>
+            <ul className="list-disc pl-4 space-y-1 text-slate-300">
+              <li><strong>Đút 3 Bích:</strong> Nếu đánh lá 3 Bích cuối cùng và không ai bắt được: thắng lớn, mỗi đối thủ bị phạt <strong>26 điểm</strong>. Nếu bị người sau chặn được: người đút 3 bích bị phạt <strong>26 điểm</strong> cho người chặn.</li>
+              <li><strong>Ăn trắng (Instant Win):</strong> Sảnh rồng (3-A), Tứ quý 2, 5 đôi thông, 6 đôi bất kỳ, hoặc đồng màu 13 lá. Thắng ngay 13 điểm từ mỗi người chơi khác.</li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>

@@ -61,6 +61,7 @@ export class Room {
     this.maxPlayers = options.maxPlayers;
     this.ownerId = options.ownerId;
     this.broadcastFn = options.broadcastFn;
+    this.seats = Array(options.maxPlayers).fill(null);
   }
 
   public getMemberByUserId(userId: string): RoomMember | null {
@@ -358,6 +359,45 @@ export class RoomManager {
         if (seat && seat.socketId === socketId) {
           return { room, member: seat };
         }
+      }
+    }
+    return null;
+  }
+
+  public listPublicRooms(): {
+    code: string;
+    name: string;
+    mode: GameMode;
+    maxPlayers: number;
+    playerCount: number;
+    hasPassword: boolean;
+    isGameActive: boolean;
+  }[] {
+    const list = [];
+    for (const room of this.roomsByCode.values()) {
+      const playerCount = room.seats.filter(s => s !== null).length;
+      list.push({
+        code: room.code,
+        name: room.name,
+        mode: room.mode,
+        maxPlayers: room.maxPlayers,
+        playerCount,
+        hasPassword: !!room.passwordHash,
+        isGameActive: !!(room.activeGame && room.activeGame.phase === 'playing'),
+      });
+    }
+    return list;
+  }
+
+  public findOpenRoom(mode?: GameMode, maxPlayers?: number): Room | null {
+    for (const room of this.roomsByCode.values()) {
+      if (room.passwordHash) continue;
+      if (room.activeGame && room.activeGame.phase === 'playing') continue;
+      if (mode && room.mode !== mode) continue;
+      if (maxPlayers && room.maxPlayers !== maxPlayers) continue;
+      const playerCount = room.seats.filter(s => s !== null).length;
+      if (playerCount < room.maxPlayers) {
+        return room;
       }
     }
     return null;

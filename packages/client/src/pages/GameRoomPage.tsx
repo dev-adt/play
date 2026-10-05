@@ -108,14 +108,43 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
   const isMyTurn = myGamePlayer ? myGamePlayer.isCurrentTurn : false;
   const hasPassed = myGamePlayer ? myGamePlayer.hasPassed : false;
 
+  const maxPlayers = roomState.maxPlayers || 4;
+
   // Positions relative to my seat (or seat 0 if spectator)
   const baseSeat = mySeat !== -1 ? mySeat : 0;
-  const getPlayerAtRelativeOffset = (offset: number) => {
-    const targetSeatIdx = (baseSeat + offset) % 4;
+
+  // Derive seat positions according to maxPlayers (2, 3, or 4)
+  let topSeatIdx = -1;
+  let leftSeatIdx = -1;
+  let rightSeatIdx = -1;
+  let bottomSeatIdx = baseSeat;
+
+  if (maxPlayers === 2) {
+    // 2 players: 1vs1 facing each other across the oval table!
+    bottomSeatIdx = baseSeat;
+    topSeatIdx = (baseSeat + 1) % 2;
+    leftSeatIdx = -1;
+    rightSeatIdx = -1;
+  } else if (maxPlayers === 3) {
+    // 3 players: triangular (bottom, right, left)
+    bottomSeatIdx = baseSeat;
+    rightSeatIdx = (baseSeat + 1) % 3;
+    leftSeatIdx = (baseSeat + 2) % 3;
+    topSeatIdx = -1;
+  } else {
+    // 4 players: standard 4 directions
+    bottomSeatIdx = baseSeat;
+    rightSeatIdx = (baseSeat + 1) % 4;
+    topSeatIdx = (baseSeat + 2) % 4;
+    leftSeatIdx = (baseSeat + 3) % 4;
+  }
+
+  const getPlayerAtSeat = (seatIdx: number) => {
+    if (seatIdx < 0 || seatIdx >= maxPlayers) return null;
     if (isGameActive) {
-      return allGamePlayers.find(p => p.seatIndex === targetSeatIdx) || null;
+      return allGamePlayers.find(p => p.seatIndex === seatIdx) || null;
     }
-    const mem = seatedMembers[targetSeatIdx];
+    const mem = seatedMembers[seatIdx];
     if (!mem) return null;
     return {
       id: mem.userId,
@@ -130,9 +159,9 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
     };
   };
 
-  const topPlayer = getPlayerAtRelativeOffset(2);
-  const leftPlayer = getPlayerAtRelativeOffset(3);
-  const rightPlayer = getPlayerAtRelativeOffset(1);
+  const topPlayer = topSeatIdx !== -1 ? getPlayerAtSeat(topSeatIdx) : null;
+  const leftPlayer = leftSeatIdx !== -1 ? getPlayerAtSeat(leftSeatIdx) : null;
+  const rightPlayer = rightSeatIdx !== -1 ? getPlayerAtSeat(rightSeatIdx) : null;
   const bottomPlayer = isGameActive
     ? myGamePlayer
     : myMember
@@ -312,33 +341,37 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
       {/* 2. THE STADIUM / OVAL CASINO TABLE (Matching Image 2) */}
       <div className="stadium-table flex-1 flex flex-col justify-between p-3 md:p-6 w-full max-w-5xl mx-auto my-auto relative min-h-[500px]">
         {/* Top Seat (North) */}
-        <div className="w-full flex justify-center z-20">
-          <PlayerSeatView
-            player={topPlayer}
-            seatIndex={(baseSeat + 2) % 4}
-            turnDeadline={gameState?.turnDeadline}
-            turnTimeoutSeconds={gameState?.turnTimeoutSeconds}
-            isPendingDut3Bich={gameState?.pendingDut3BichPlayerId === topPlayer?.id}
-            position="top"
-            isLobby={!isGameActive}
-            onTakeSeat={takeSeat}
-          />
-        </div>
+        {topSeatIdx !== -1 && (
+          <div className="w-full flex justify-center z-20">
+            <PlayerSeatView
+              player={topPlayer}
+              seatIndex={topSeatIdx}
+              turnDeadline={gameState?.turnDeadline}
+              turnTimeoutSeconds={gameState?.turnTimeoutSeconds}
+              isPendingDut3Bich={gameState?.pendingDut3BichPlayerId === topPlayer?.id}
+              position="top"
+              isLobby={!isGameActive}
+              onTakeSeat={takeSeat}
+            />
+          </div>
+        )}
 
         {/* Middle Row: Left Seat (West) - Center Table (Combo) - Right Seat (East) */}
         <div className="w-full flex items-center justify-between my-auto px-1 md:px-6 z-20">
           {/* Left Seat */}
           <div className="w-36 flex justify-start">
-            <PlayerSeatView
-              player={leftPlayer}
-              seatIndex={(baseSeat + 3) % 4}
-              turnDeadline={gameState?.turnDeadline}
-              turnTimeoutSeconds={gameState?.turnTimeoutSeconds}
-              isPendingDut3Bich={gameState?.pendingDut3BichPlayerId === leftPlayer?.id}
-              position="left"
-              isLobby={!isGameActive}
-              onTakeSeat={takeSeat}
-            />
+            {leftSeatIdx !== -1 && (
+              <PlayerSeatView
+                player={leftPlayer}
+                seatIndex={leftSeatIdx}
+                turnDeadline={gameState?.turnDeadline}
+                turnTimeoutSeconds={gameState?.turnTimeoutSeconds}
+                isPendingDut3Bich={gameState?.pendingDut3BichPlayerId === leftPlayer?.id}
+                position="left"
+                isLobby={!isGameActive}
+                onTakeSeat={takeSeat}
+              />
+            )}
           </div>
 
           {/* Center Table: Combo or Lobby Host Controls */}
@@ -361,7 +394,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
                       className="btn-game-gold py-3 px-8 text-base md:text-lg shadow-2xl scale-110 flex items-center gap-2"
                     >
                       <Play size={20} fill="#3e2723" />
-                      BẮT ĐẦU VÁN ({seatedCount}/4)
+                      BẮT ĐẦU VÁN ({seatedCount}/{maxPlayers})
                     </button>
                     {!allReady && (
                       <span className="text-xs text-amber-200/80 bg-black/60 px-3 py-1 rounded-full mt-1 border border-amber-500/20">
@@ -382,16 +415,18 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
 
           {/* Right Seat */}
           <div className="w-36 flex justify-end">
-            <PlayerSeatView
-              player={rightPlayer}
-              seatIndex={(baseSeat + 1) % 4}
-              turnDeadline={gameState?.turnDeadline}
-              turnTimeoutSeconds={gameState?.turnTimeoutSeconds}
-              isPendingDut3Bich={gameState?.pendingDut3BichPlayerId === rightPlayer?.id}
-              position="right"
-              isLobby={!isGameActive}
-              onTakeSeat={takeSeat}
-            />
+            {rightSeatIdx !== -1 && (
+              <PlayerSeatView
+                player={rightPlayer}
+                seatIndex={rightSeatIdx}
+                turnDeadline={gameState?.turnDeadline}
+                turnTimeoutSeconds={gameState?.turnTimeoutSeconds}
+                isPendingDut3Bich={gameState?.pendingDut3BichPlayerId === rightPlayer?.id}
+                position="right"
+                isLobby={!isGameActive}
+                onTakeSeat={takeSeat}
+              />
+            )}
           </div>
         </div>
 
