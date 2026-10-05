@@ -188,9 +188,14 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
   // Play
   const handlePlay = async () => {
     if (selectedCardIds.length === 0) return;
-    const res = await playCards(selectedCardIds);
+    const orderedIds = myHand
+      .filter(c => selectedCardIds.includes(c.id))
+      .map(c => c.id);
+    const res = await playCards(orderedIds.length > 0 ? orderedIds : selectedCardIds);
     if (res.success) {
       setSelectedCardIds([]);
+    } else if (res.error) {
+      alert(res.error);
     }
   };
 
@@ -339,11 +344,11 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
       </div>
 
       {/* 2. THE STADIUM / OVAL CASINO TABLE (Holds Top, Left, Right Opponents & Center Table) */}
-      <div className="flex-1 w-full max-w-5xl mx-auto flex items-center justify-center relative p-1 md:p-3 min-h-[280px] max-h-[52vh]">
-        <div className="stadium-table w-full h-full relative flex items-center justify-center">
+      <div className="flex-1 w-full max-w-5xl mx-auto flex items-center justify-center relative p-1 md:p-3 my-auto min-h-[300px] md:min-h-[380px]">
+        <div className="stadium-table w-full h-[300px] md:h-[380px] relative flex items-center justify-center">
           {/* Top Seat (Opponent) */}
           {topSeatIdx !== -1 && (
-            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20">
+            <div className="absolute -top-7 md:-top-9 left-1/2 -translate-x-1/2 z-20">
               <PlayerSeatView
                 player={topPlayer}
                 seatIndex={topSeatIdx}

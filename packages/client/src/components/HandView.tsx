@@ -41,17 +41,20 @@ export const HandView: React.FC<HandViewProps> = ({
               key={card.id}
               style={{
                 marginLeft: idx === 0 ? '0px' : `${overlapPx}px`,
-                zIndex: isSelected ? 40 + idx : idx,
-                transform: isSelected ? 'translateY(-24px)' : 'translateY(0px)',
+                zIndex: idx,
+                transform: isSelected ? 'translateY(-24px)' : undefined,
                 transition: 'transform 0.16s cubic-bezier(0.2, 0.8, 0.4, 1)',
               }}
-              className="relative shrink-0 cursor-pointer"
+              className={`relative shrink-0 cursor-pointer ${
+                !isSelected ? 'hover:-translate-y-2' : ''
+              }`}
               onClick={() => onToggleSelect(card.id)}
             >
               <CardView
                 card={card}
                 isSelected={isSelected}
                 size="md"
+                onClick={() => onToggleSelect(card.id)}
               />
             </div>
           );

@@ -74,12 +74,18 @@ export const PlayerSeatView: React.FC<PlayerSeatViewProps> = ({
 
   return (
     <div
-      className={`flex items-center gap-2 select-none relative ${
-        position === 'left' ? 'flex-row' : position === 'right' ? 'flex-row-reverse' : 'flex-col'
+      className={`flex items-center gap-2.5 select-none relative ${
+        position === 'left'
+          ? 'flex-row'
+          : position === 'right'
+          ? 'flex-row-reverse'
+          : position === 'top'
+          ? 'flex-row items-center'
+          : 'flex-col'
       }`}
     >
       {/* Player Avatar Box (ZingPlay style) */}
-      <div className="flex flex-col items-center relative">
+      <div className="flex flex-col items-center relative shrink-0">
         {/* Crown if owner */}
         {player.isOwner && (
           <div className="absolute -top-3.5 z-20 text-amber-400 filter drop-shadow">
@@ -136,7 +142,7 @@ export const PlayerSeatView: React.FC<PlayerSeatViewProps> = ({
       )}
 
       {/* Badges: BỎ LƯỢT / ĐÚT 3♠ / SẴN SÀNG */}
-      <div className="flex flex-col items-center gap-1 z-20">
+      <div className="flex flex-col items-center gap-1 z-20 shrink-0">
         {player.hasPassed && (
           <div className="badge-bo-luot animate-pulse">
             BỎ LƯỢT
