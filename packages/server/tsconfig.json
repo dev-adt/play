@@ -3,7 +3,10 @@
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
-    "types": ["node"]
+    "types": ["node"],
+    "paths": {
+      "@tienlen/shared": ["../shared/dist/index.d.ts"]
+    }
   },
   "include": ["src/**/*"]
 }

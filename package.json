@@ -9,7 +9,10 @@
   "scripts": {
     "test": "npm run test --workspace=packages/shared",
     "test:server": "npm run test --workspace=packages/server",
-    "build": "npm run build --workspaces",
+    "build:shared": "npm run build --workspace=packages/shared",
+    "build:server": "npm run build --workspace=packages/server",
+    "build:client": "npm run build --workspace=packages/client",
+    "build": "npm run build:shared && npm run build:server && npm run build:client",
     "dev:shared": "npm run dev --workspace=packages/shared",
     "dev:server": "npm run dev --workspace=packages/server",
     "dev:client": "npm run dev --workspace=packages/client",

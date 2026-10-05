@@ -18,15 +18,15 @@ COPY packages/shared ./packages/shared
 COPY packages/server ./packages/server
 COPY packages/client ./packages/client
 
-# Build shared, server, and client
-RUN npm run build
+# Build shared first, then server and client sequentially
+RUN npm run build:shared && npm run build:server && npm run build:client
 
 # Production runner stage
 FROM node:22-alpine AS runner
 
 WORKDIR /app
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=3027
 
 # Copy root package files
 COPY package*.json ./
@@ -44,10 +44,10 @@ COPY --from=builder /app/packages/server/src/db/schema.mysql.sql ./packages/serv
 COPY --from=builder /app/packages/client/dist ./packages/client/dist
 
 # Expose internal port
-EXPOSE 3000
+EXPOSE 3027
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:3000/api/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:3027/api/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
 
 CMD ["node", "packages/server/dist/index.js"]
