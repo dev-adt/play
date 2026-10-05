@@ -1,6 +1,8 @@
 import pg from 'pg';
+import mysql from 'mysql2/promise';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { config } from '../config.js';
 
 export interface UserRow {
@@ -58,13 +60,15 @@ export interface GameResultRow {
 
 class DatabaseAdapter {
   private pgPool: pg.Pool | null = null;
-  private isPg: boolean = false;
+  private mysqlPool: mysql.Pool | null = null;
+  private dbType: 'pg' | 'mysql' | 'local' = 'local';
+
   private localData = {
     users: new Map<string, UserRow>(),
     usersByUsername: new Map<string, UserRow>(),
     rooms: new Map<string, RoomRow>(),
     roomsByCode: new Map<string, RoomRow>(),
-    playerStats: new Map<string, PlayerStatsRow>(), // key: `${userId}_${mode}`
+    playerStats: new Map<string, PlayerStatsRow>(),
     games: new Map<string, any>(),
     gameEvents: [] as any[],
     scoreLedger: [] as ScoreLedgerRow[],
@@ -73,35 +77,83 @@ class DatabaseAdapter {
   private localFilePath = path.resolve(process.cwd(), 'data_local.json');
 
   async init(): Promise<void> {
-    if (config.databaseUrl) {
+    const dbUrl = config.databaseUrl.trim();
+
+    // 1. Check if MySQL URL
+    if (dbUrl.startsWith('mysql://') || dbUrl.startsWith('mysql2://')) {
+      try {
+        console.log('Connecting to MySQL database (aaPanel)...');
+        this.mysqlPool = mysql.createPool({
+          uri: dbUrl,
+          waitForConnections: true,
+          connectionLimit: 10,
+          queueLimit: 0,
+        });
+
+        // Test connection
+        const conn = await this.mysqlPool.getConnection();
+        console.log('Connected to MySQL successfully.');
+        this.dbType = 'mysql';
+
+        // Apply MySQL schema migrations
+        const __dirname = path.dirname(fileURLToPath(import.meta.url));
+        const schemaPath = path.resolve(__dirname, 'schema.mysql.sql');
+        if (fs.existsSync(schemaPath)) {
+          const sql = fs.readFileSync(schemaPath, 'utf8');
+          // Split by semicolons for individual statements
+          const statements = sql
+            .split(';')
+            .map(s => s.trim())
+            .filter(s => s.length > 0 && !s.startsWith('--'));
+
+          for (const stmt of statements) {
+            try {
+              await conn.query(stmt);
+            } catch (err: any) {
+              // Ignore table already exists
+            }
+          }
+          console.log('MySQL schema verified and ready.');
+        }
+
+        conn.release();
+        return;
+      } catch (err: any) {
+        console.warn('MySQL connection failed:', err.message, '- Falling back to local embedded database.');
+        this.dbType = 'local';
+      }
+    }
+    // 2. Check if PostgreSQL URL
+    else if (dbUrl.startsWith('postgres://') || dbUrl.startsWith('postgresql://')) {
       try {
         console.log('Connecting to PostgreSQL database...');
         this.pgPool = new pg.Pool({
-          connectionString: config.databaseUrl,
+          connectionString: dbUrl,
           connectionTimeoutMillis: 5000,
         });
         const client = await this.pgPool.connect();
         console.log('Connected to PostgreSQL successfully.');
-        this.isPg = true;
+        this.dbType = 'pg';
 
-        // Run migrations
-        const schemaPath = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), 'schema.sql');
+        const __dirname = path.dirname(fileURLToPath(import.meta.url));
+        const schemaPath = path.resolve(__dirname, 'schema.sql');
         if (fs.existsSync(schemaPath)) {
           const schemaSql = fs.readFileSync(schemaPath, 'utf8');
           await client.query(schemaSql);
-          console.log('Database migrations applied successfully.');
+          console.log('PostgreSQL migrations applied successfully.');
         }
         client.release();
         return;
-      } catch (err) {
-        console.warn('PostgreSQL connection failed or not available. Falling back to local embedded database:', (err as Error).message);
-        this.isPg = false;
+      } catch (err: any) {
+        console.warn('PostgreSQL connection failed:', err.message, '- Falling back to local embedded database.');
+        this.dbType = 'local';
       }
     } else {
-      console.log('No DATABASE_URL provided. Using local embedded database.');
+      console.log('No external DATABASE_URL provided. Using local embedded database.');
+      this.dbType = 'local';
     }
 
-    // Load local file if exists
+    // 3. Fallback: Load local file
     if (fs.existsSync(this.localFilePath)) {
       try {
         const raw = fs.readFileSync(this.localFilePath, 'utf8');
@@ -135,7 +187,7 @@ class DatabaseAdapter {
   }
 
   private persistLocal(): void {
-    if (this.isPg) return;
+    if (this.dbType !== 'local') return;
     try {
       const dataToSave = {
         users: Array.from(this.localData.users.values()),
@@ -153,7 +205,14 @@ class DatabaseAdapter {
   // --- USER METHODS ---
   async getUserByUsername(username: string): Promise<UserRow | null> {
     const uname = username.trim().toLowerCase();
-    if (this.isPg && this.pgPool) {
+    if (this.dbType === 'mysql' && this.mysqlPool) {
+      const [rows] = await this.mysqlPool.query<any[]>(
+        'SELECT * FROM users WHERE LOWER(username) = ? LIMIT 1',
+        [uname]
+      );
+      return rows[0] || null;
+    }
+    if (this.dbType === 'pg' && this.pgPool) {
       const res = await this.pgPool.query('SELECT * FROM users WHERE LOWER(username) = $1 LIMIT 1', [uname]);
       return res.rows[0] || null;
     }
@@ -161,7 +220,11 @@ class DatabaseAdapter {
   }
 
   async getUserById(id: string): Promise<UserRow | null> {
-    if (this.isPg && this.pgPool) {
+    if (this.dbType === 'mysql' && this.mysqlPool) {
+      const [rows] = await this.mysqlPool.query<any[]>('SELECT * FROM users WHERE id = ? LIMIT 1', [id]);
+      return rows[0] || null;
+    }
+    if (this.dbType === 'pg' && this.pgPool) {
       const res = await this.pgPool.query('SELECT * FROM users WHERE id = $1 LIMIT 1', [id]);
       return res.rows[0] || null;
     }
@@ -177,7 +240,12 @@ class DatabaseAdapter {
       created_at: new Date(),
     };
 
-    if (this.isPg && this.pgPool) {
+    if (this.dbType === 'mysql' && this.mysqlPool) {
+      await this.mysqlPool.query(
+        'INSERT INTO users (id, username, password_hash, display_name, created_at) VALUES (?, ?, ?, ?, NOW())',
+        [row.id, row.username, row.password_hash, row.display_name]
+      );
+    } else if (this.dbType === 'pg' && this.pgPool) {
       await this.pgPool.query(
         'INSERT INTO users (id, username, password_hash, display_name, created_at) VALUES ($1, $2, $3, $4, $5)',
         [row.id, row.username, row.password_hash, row.display_name, row.created_at]
@@ -192,7 +260,11 @@ class DatabaseAdapter {
 
   async updateUserPassword(username: string, newHash: string): Promise<boolean> {
     const uname = username.trim().toLowerCase();
-    if (this.isPg && this.pgPool) {
+    if (this.dbType === 'mysql' && this.mysqlPool) {
+      const [res]: any = await this.mysqlPool.query('UPDATE users SET password_hash = ? WHERE LOWER(username) = ?', [newHash, uname]);
+      return res.affectedRows > 0;
+    }
+    if (this.dbType === 'pg' && this.pgPool) {
       const res = await this.pgPool.query('UPDATE users SET password_hash = $1 WHERE LOWER(username) = $2', [newHash, uname]);
       return (res.rowCount ?? 0) > 0;
     }
@@ -215,7 +287,14 @@ class DatabaseAdapter {
       updated_at: new Date(),
     });
 
-    if (this.isPg && this.pgPool) {
+    if (this.dbType === 'mysql' && this.mysqlPool) {
+      const [rows] = await this.mysqlPool.query<any[]>('SELECT * FROM player_mode_stats WHERE user_id = ?', [userId]);
+      const basic = rows.find((r: PlayerStatsRow) => r.mode === 'basic') || defaultStats('basic');
+      const fund = rows.find((r: PlayerStatsRow) => r.mode === 'fund') || defaultStats('fund');
+      return { basic, fund };
+    }
+
+    if (this.dbType === 'pg' && this.pgPool) {
       const res = await this.pgPool.query('SELECT * FROM player_mode_stats WHERE user_id = $1', [userId]);
       const basic = res.rows.find((r: PlayerStatsRow) => r.mode === 'basic') || defaultStats('basic');
       const fund = res.rows.find((r: PlayerStatsRow) => r.mode === 'fund') || defaultStats('fund');
@@ -233,7 +312,24 @@ class DatabaseAdapter {
     scoreDelta: number,
     winDelta: number
   ): Promise<void> {
-    if (this.isPg && this.pgPool) {
+    if (this.dbType === 'mysql' && this.mysqlPool) {
+      const net = mode === 'basic' ? scoreDelta : 0;
+      const totalNeg = mode === 'fund' && scoreDelta < 0 ? scoreDelta : 0;
+      await this.mysqlPool.query(
+        `INSERT INTO player_mode_stats (user_id, mode, net_score, total_negative, wins, games_played, updated_at)
+         VALUES (?, ?, ?, ?, ?, 1, NOW())
+         ON DUPLICATE KEY UPDATE
+           net_score = IF(mode = 'basic', net_score + VALUES(net_score), 0),
+           total_negative = IF(mode = 'fund' AND ? < 0, total_negative + ?, total_negative),
+           wins = wins + VALUES(wins),
+           games_played = games_played + 1,
+           updated_at = NOW()`,
+        [userId, mode, net, totalNeg, winDelta, scoreDelta, scoreDelta]
+      );
+      return;
+    }
+
+    if (this.dbType === 'pg' && this.pgPool) {
       const client = await this.pgPool.connect();
       try {
         await client.query('BEGIN');
@@ -294,7 +390,11 @@ class DatabaseAdapter {
 
   // --- ROOM METHODS ---
   async getRoomByCode(code: string): Promise<RoomRow | null> {
-    if (this.isPg && this.pgPool) {
+    if (this.dbType === 'mysql' && this.mysqlPool) {
+      const [rows] = await this.mysqlPool.query<any[]>('SELECT * FROM rooms WHERE code = ? LIMIT 1', [code]);
+      return rows[0] || null;
+    }
+    if (this.dbType === 'pg' && this.pgPool) {
       const res = await this.pgPool.query('SELECT * FROM rooms WHERE code = $1 LIMIT 1', [code]);
       return res.rows[0] || null;
     }
@@ -322,7 +422,12 @@ class DatabaseAdapter {
       created_at: new Date(),
     };
 
-    if (this.isPg && this.pgPool) {
+    if (this.dbType === 'mysql' && this.mysqlPool) {
+      await this.mysqlPool.query(
+        'INSERT INTO rooms (id, code, name, mode, password_hash, max_players, owner_id, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())',
+        [row.id, row.code, row.name, row.mode, row.password_hash, row.max_players, row.owner_id, 1]
+      );
+    } else if (this.dbType === 'pg' && this.pgPool) {
       await this.pgPool.query(
         'INSERT INTO rooms (id, code, name, mode, password_hash, max_players, owner_id, is_active, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
         [row.id, row.code, row.name, row.mode, row.password_hash, row.max_players, row.owner_id, row.is_active, row.created_at]
@@ -346,12 +451,73 @@ class DatabaseAdapter {
     ledger: ScoreLedgerRow[];
     results: GameResultRow[];
   }): Promise<void> {
-    if (this.isPg && this.pgPool) {
+    if (this.dbType === 'mysql' && this.mysqlPool) {
+      const conn = await this.mysqlPool.getConnection();
+      try {
+        await conn.beginTransaction();
+
+        // 1. Insert game
+        await conn.query(
+          `INSERT INTO games (id, room_id, mode, rules_version, participants, phase, end_reason, winners, created_at)
+           VALUES (?, ?, ?, '1.0', ?, 'ended', ?, ?, NOW())`,
+          [
+            data.gameId,
+            data.roomId,
+            data.mode,
+            JSON.stringify(data.participants),
+            data.endReason,
+            JSON.stringify(data.winners),
+          ]
+        );
+
+        // 2. Insert ledger
+        for (const entry of data.ledger) {
+          await conn.query(
+            `INSERT INTO score_ledger (id, game_id, event_id, mode, from_player_id, to_player_id, reason, amount, card_ids, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+            [
+              entry.id,
+              data.gameId,
+              entry.event_id || null,
+              entry.mode,
+              entry.from_player_id,
+              entry.to_player_id || null,
+              entry.reason,
+              entry.amount,
+              entry.card_ids ? JSON.stringify(entry.card_ids) : null,
+            ]
+          );
+        }
+
+        // 3. Insert results
+        for (const res of data.results) {
+          await conn.query(
+            `INSERT INTO game_results (id, game_id, player_id, score_delta, win_delta, breakdown, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+            [
+              res.id,
+              data.gameId,
+              res.player_id,
+              res.score_delta,
+              res.win_delta,
+              JSON.stringify(res.breakdown),
+            ]
+          );
+        }
+
+        await conn.commit();
+      } catch (e) {
+        await conn.rollback();
+        console.error('Failed to commit MySQL settlement transaction:', e);
+        throw e;
+      } finally {
+        conn.release();
+      }
+    } else if (this.dbType === 'pg' && this.pgPool) {
       const client = await this.pgPool.connect();
       try {
         await client.query('BEGIN');
 
-        // 1. Insert game record
         await client.query(
           `INSERT INTO games (id, room_id, mode, rules_version, participants, phase, end_reason, winners, created_at)
            VALUES ($1, $2, $3, '1.0', $4, 'ended', $5, $6, NOW())`,
@@ -365,7 +531,6 @@ class DatabaseAdapter {
           ]
         );
 
-        // 2. Insert ledger entries
         for (const entry of data.ledger) {
           await client.query(
             `INSERT INTO score_ledger (id, game_id, event_id, mode, from_player_id, to_player_id, reason, amount, card_ids, created_at)
@@ -384,7 +549,6 @@ class DatabaseAdapter {
           );
         }
 
-        // 3. Insert game results and update player_mode_stats
         for (const res of data.results) {
           await client.query(
             `INSERT INTO game_results (id, game_id, player_id, score_delta, win_delta, breakdown, created_at)
@@ -403,7 +567,7 @@ class DatabaseAdapter {
         await client.query('COMMIT');
       } catch (e) {
         await client.query('ROLLBACK');
-        console.error('Failed to commit settlement transaction:', e);
+        console.error('Failed to commit PostgreSQL settlement transaction:', e);
         throw e;
       } finally {
         client.release();
@@ -426,7 +590,20 @@ class DatabaseAdapter {
 
   // --- RECENT GAMES HISTORY ---
   async getPlayerGameHistory(userId: string, limit: number = 10): Promise<any[]> {
-    if (this.isPg && this.pgPool) {
+    if (this.dbType === 'mysql' && this.mysqlPool) {
+      const [rows] = await this.mysqlPool.query<any[]>(
+        `SELECT gr.id, gr.game_id, gr.score_delta, gr.win_delta, gr.breakdown, gr.created_at, g.mode, g.end_reason
+         FROM game_results gr
+         JOIN games g ON gr.game_id = g.id
+         WHERE gr.player_id = ?
+         ORDER BY gr.created_at DESC
+         LIMIT ?`,
+        [userId, limit]
+      );
+      return rows;
+    }
+
+    if (this.dbType === 'pg' && this.pgPool) {
       const res = await this.pgPool.query(
         `SELECT gr.id, gr.game_id, gr.score_delta, gr.win_delta, gr.breakdown, gr.created_at, g.mode, g.end_reason
          FROM game_results gr

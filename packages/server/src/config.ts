@@ -4,7 +4,7 @@ import path from 'path';
 dotenv.config();
 
 export const config = {
-  port: parseInt(process.env.PORT || '3000', 10),
+  port: parseInt(process.env.PORT || '3027', 10),
   host: process.env.HOST || '0.0.0.0',
   appOrigin: process.env.APP_ORIGIN || 'https://play.edunow.today',
   sessionSecret: process.env.SESSION_SECRET || 'play_edunow_today_super_secret_jwt_key_2026',

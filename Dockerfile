@@ -40,6 +40,7 @@ RUN npm ci --omit=dev
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /app/packages/server/dist ./packages/server/dist
 COPY --from=builder /app/packages/server/src/db/schema.sql ./packages/server/dist/db/schema.sql
+COPY --from=builder /app/packages/server/src/db/schema.mysql.sql ./packages/server/dist/db/schema.mysql.sql
 COPY --from=builder /app/packages/client/dist ./packages/client/dist
 
 # Expose internal port
