@@ -89,8 +89,12 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div className="w-full min-h-screen bg-slate-950 flex flex-col justify-between">
-      <main className="flex-1 flex flex-col">
+    <div
+      className={`w-full bg-slate-950 flex flex-col justify-between ${
+        currentRoomCode ? 'h-screen h-[100dvh] max-h-[100dvh] overflow-hidden' : 'min-h-screen'
+      }`}
+    >
+      <main className={`flex-1 flex flex-col ${currentRoomCode ? 'h-full max-h-[100dvh] overflow-hidden' : ''}`}>
         {currentRoomCode ? (
           <GameRoomPage roomCode={currentRoomCode} />
         ) : (

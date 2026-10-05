@@ -20,6 +20,8 @@ export const CardView: React.FC<CardViewProps> = ({
   size = 'md',
   className = '',
 }) => {
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+
   // Dimensions
   let width = 68;
   let height = 98;
@@ -27,10 +29,17 @@ export const CardView: React.FC<CardViewProps> = ({
   let suitSize = '1.1rem';
 
   if (size === 'sm') {
-    width = 46;
-    height = 66;
-    fontSize = '0.9rem';
-    suitSize = '0.8rem';
+    width = isMobile ? 40 : 46;
+    height = isMobile ? 58 : 66;
+    fontSize = isMobile ? '0.8rem' : '0.9rem';
+    suitSize = isMobile ? '0.7rem' : '0.8rem';
+  } else if (size === 'md') {
+    if (isMobile) {
+      width = 54;
+      height = 78;
+      fontSize = '1.1rem';
+      suitSize = '0.95rem';
+    }
   } else if (size === 'lg') {
     width = 82;
     height = 118;
@@ -60,9 +69,9 @@ export const CardView: React.FC<CardViewProps> = ({
           }}
         />
 
-        {/* Center count badge (matching Image 2) */}
+        {/* Center count badge (matching Image 2 with vibrant contrast) */}
         {backCount !== undefined && (
-          <div className="relative z-10 w-7 h-7 rounded-full bg-blue-900/90 border-2 border-white/80 flex items-center justify-center text-xs font-black text-white shadow-md font-display">
+          <div className="relative z-10 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-amber-400 via-yellow-200 to-amber-500 border-2 border-white text-slate-950 font-black text-xs sm:text-sm shadow-xl flex items-center justify-center font-display drop-shadow">
             {backCount}
           </div>
         )}

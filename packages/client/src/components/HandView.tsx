@@ -15,17 +15,21 @@ export const HandView: React.FC<HandViewProps> = ({
 }) => {
   const cardCount = hand.length;
 
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+
   // Calculate dynamic overlap in pixels so all 13 cards fit horizontally on screen
-  // Card width is 64px on desktop, 48px on mobile
-  const overlapPx =
-    cardCount > 11 ? -36 : cardCount > 9 ? -30 : cardCount > 6 ? -24 : -16;
+  const overlapPx = isMobile
+    ? (cardCount > 11 ? -33 : cardCount > 9 ? -27 : cardCount > 6 ? -20 : -14)
+    : (cardCount > 11 ? -36 : cardCount > 9 ? -30 : cardCount > 6 ? -24 : -16);
+
+  const raiseY = isMobile ? -16 : -24;
 
   return (
-    <div className="w-full flex items-end justify-center select-none overflow-x-auto overflow-y-visible px-2 pt-8 pb-1 scrollbar-none">
+    <div className="w-full flex items-end justify-center select-none overflow-x-auto overflow-y-visible px-1 sm:px-2 pt-4 sm:pt-7 pb-1 scrollbar-none">
       <div
         className="flex flex-row flex-nowrap items-end justify-center relative"
         style={{
-          minHeight: '115px',
+          minHeight: isMobile ? '82px' : '115px',
           display: 'flex',
           flexDirection: 'row',
           flexWrap: 'nowrap',
@@ -42,7 +46,7 @@ export const HandView: React.FC<HandViewProps> = ({
               style={{
                 marginLeft: idx === 0 ? '0px' : `${overlapPx}px`,
                 zIndex: idx,
-                transform: isSelected ? 'translateY(-24px)' : undefined,
+                transform: isSelected ? `translateY(${raiseY}px)` : undefined,
                 transition: 'transform 0.16s cubic-bezier(0.2, 0.8, 0.4, 1)',
               }}
               className={`relative shrink-0 cursor-pointer ${

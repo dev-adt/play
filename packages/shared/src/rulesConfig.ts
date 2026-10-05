@@ -64,5 +64,5 @@ export const defaultRulesConfig: RulesConfig = {
   dut3BichPassResolution: 'all_opponents_pass',
   preferNormalBlockOverChop: true,
   finishWithTwosOpponentWins: true,
-  turnTimeoutSeconds: 30,
+  turnTimeoutSeconds: 15,
 };

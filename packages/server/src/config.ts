@@ -11,6 +11,6 @@ export const config = {
   databaseUrl: process.env.DATABASE_URL || '',
   nodeEnv: process.env.NODE_ENV || 'development',
   isProduction: process.env.NODE_ENV === 'production',
-  turnTimeoutSeconds: parseInt(process.env.TURN_TIMEOUT_SECONDS || '30', 10),
+  turnTimeoutSeconds: parseInt(process.env.TURN_TIMEOUT_SECONDS || '15', 10),
   clientDistPath: process.env.CLIENT_DIST_PATH || path.resolve(process.cwd(), '../client/dist'),
 };

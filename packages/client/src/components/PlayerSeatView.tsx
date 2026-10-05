@@ -31,7 +31,7 @@ export const PlayerSeatView: React.FC<PlayerSeatViewProps> = ({
   player,
   seatIndex,
   turnDeadline = 0,
-  turnTimeoutSeconds = 30,
+  turnTimeoutSeconds = 15,
   isPendingDut3Bich = false,
   position,
   isLobby = false,
@@ -56,19 +56,22 @@ export const PlayerSeatView: React.FC<PlayerSeatViewProps> = ({
     return () => clearInterval(interval);
   }, [player?.isCurrentTurn, turnDeadline]);
 
-  // If seat is empty in lobby: show attractive "Ngồi ghế" button
+  // If seat is empty: show attractive "Ngồi ghế" button
   if (!player) {
-    if (isLobby && onTakeSeat) {
+    if (onTakeSeat) {
       return (
         <button
           onClick={() => onTakeSeat(seatIndex)}
-          className="flex flex-col items-center justify-center p-3 rounded-2xl border-2 border-dashed border-amber-400/40 bg-black/30 hover:bg-black/50 hover:border-amber-400 transition cursor-pointer select-none group"
-          style={{ minWidth: '100px' }}
+          className="flex flex-col items-center justify-center p-2 sm:p-2.5 rounded-2xl border-2 border-dashed border-amber-400/40 bg-black/40 hover:bg-black/60 hover:border-amber-400 transition cursor-pointer select-none group"
+          style={{ minWidth: '76px' }}
         >
-          <div className="w-12 h-12 rounded-full border-2 border-amber-400/60 flex items-center justify-center text-amber-400 font-bold text-xl group-hover:scale-110 transition shadow">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-amber-400/60 flex items-center justify-center text-amber-400 font-bold text-base sm:text-lg group-hover:scale-110 transition shadow">
             +
           </div>
-          <span className="text-xs text-amber-300 font-bold mt-1.5">Ngồi ghế {seatIndex + 1}</span>
+          <span className="text-[10px] sm:text-xs text-amber-300 font-bold mt-1">Ngồi ghế {seatIndex + 1}</span>
+          {!isLobby && (
+            <span className="text-[9px] text-amber-200/70 font-semibold">Chờ ván sau</span>
+          )}
         </button>
       );
     }
@@ -80,7 +83,7 @@ export const PlayerSeatView: React.FC<PlayerSeatViewProps> = ({
 
   return (
     <div
-      className={`flex items-center gap-2.5 select-none relative ${
+      className={`flex items-center gap-1.5 sm:gap-2.5 select-none relative ${
         position === 'left'
           ? 'flex-row'
           : position === 'right'
@@ -110,13 +113,13 @@ export const PlayerSeatView: React.FC<PlayerSeatViewProps> = ({
         {/* Circular Avatar */}
         <div className="relative">
           <div
-            className={`w-14 h-14 md:w-16 md:h-16 rounded-full border-2 p-0.5 overflow-hidden shadow-lg transition-all ${
+            className={`w-11 h-11 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-full border-2 p-0.5 overflow-hidden shadow-lg transition-all ${
               player.isCurrentTurn
                 ? 'border-amber-400 ring-4 ring-amber-400/50 scale-105'
                 : 'border-amber-500/60 bg-slate-900'
             }`}
           >
-            <div className="w-full h-full rounded-full bg-gradient-to-tr from-amber-700 via-amber-500 to-amber-300 flex items-center justify-center font-black text-slate-950 text-xl font-display shadow-inner">
+            <div className="w-full h-full rounded-full bg-gradient-to-tr from-amber-700 via-amber-500 to-amber-300 flex items-center justify-center font-black text-slate-950 text-base sm:text-xl font-display shadow-inner">
               {player.displayName.charAt(0).toUpperCase()}
             </div>
           </div>
@@ -127,25 +130,33 @@ export const PlayerSeatView: React.FC<PlayerSeatViewProps> = ({
             </div>
           )}
 
-          {/* Turn timer circular badge (Matching Image 2 with "20") */}
+          {/* Turn timer circular badge (Matching Image 2 with countdown) */}
           {player.isCurrentTurn && (
-            <div className="absolute -top-1 -right-2 turn-timer-ring w-7 h-7 flex items-center justify-center z-20">
+            <div className="absolute -top-1 -right-2 turn-timer-ring w-6 h-6 sm:w-7 sm:h-7 text-xs flex items-center justify-center z-20">
               {timeLeft}
             </div>
           )}
         </div>
 
         {/* Name pill */}
-        <div className="bg-black/80 border border-amber-500/40 rounded-full px-2.5 py-0.5 mt-1 max-w-[110px] text-center shadow">
-          <div className="text-[11px] md:text-xs font-bold text-white truncate font-display">
+        <div className="bg-black/80 border border-amber-500/40 rounded-full px-2 py-0.5 mt-0.5 max-w-[85px] sm:max-w-[110px] text-center shadow">
+          <div className="text-[10px] sm:text-xs font-bold text-white truncate font-display">
             {player.displayName}
           </div>
         </div>
 
-        {/* Score / Chips under name */}
-        <div className="text-[11px] font-extrabold text-amber-400 mt-0.5 tracking-tight font-display drop-shadow">
-          {scoreDisplay}
-        </div>
+        {/* Score / Chips or Card Count badge under name */}
+        {position !== 'bottom' && player.cardCount > 0 && !isLobby ? (
+          <div className="mt-0.5 bg-gradient-to-r from-amber-500/30 to-amber-600/30 border border-amber-400/80 rounded-full px-2 py-0.5 flex items-center justify-center shadow-md">
+            <span className="text-[11px] sm:text-xs font-black text-amber-300 font-display">
+              {player.cardCount} lá
+            </span>
+          </div>
+        ) : (
+          <div className="text-[10px] sm:text-[11px] font-extrabold text-amber-400 mt-0.5 tracking-tight font-display drop-shadow">
+            {scoreDisplay}
+          </div>
+        )}
 
         {/* Host Kick Button */}
         {canKick && onKick && player && (
@@ -156,10 +167,10 @@ export const PlayerSeatView: React.FC<PlayerSeatViewProps> = ({
                 onKick(player.id);
               }
             }}
-            className="mt-1 bg-red-700/80 hover:bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full border border-red-400 shadow-md flex items-center gap-1 transition active:scale-95 cursor-pointer"
+            className="mt-1 bg-red-700/80 hover:bg-red-600 text-white text-[9px] sm:text-[10px] font-black px-1.5 sm:px-2 py-0.5 rounded-full border border-red-400 shadow-md flex items-center gap-1 transition active:scale-95 cursor-pointer"
             title={`Kick ${player.displayName} ra khỏi phòng`}
           >
-            <UserX size={10} /> Kick
+            <UserX size={9} /> Kick
           </button>
         )}
       </div>

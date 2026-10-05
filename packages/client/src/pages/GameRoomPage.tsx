@@ -193,7 +193,29 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
   const getPlayerAtSeat = (seatIdx: number) => {
     if (seatIdx < 0 || seatIdx >= maxPlayers) return null;
     if (isGameActive) {
-      return allGamePlayers.find(p => p.seatIndex === seatIdx) || null;
+      const gp = allGamePlayers.find(p => p.seatIndex === seatIdx);
+      if (gp) {
+        return {
+          ...gp,
+          isOwner: gp.id === roomState.ownerId,
+        };
+      }
+      const mem = seatedMembers[seatIdx];
+      if (mem) {
+        return {
+          id: mem.userId,
+          displayName: mem.displayName,
+          seatIndex: mem.seatIndex,
+          cardCount: 0,
+          hasPassed: false,
+          isOnline: mem.isOnline,
+          isCurrentTurn: false,
+          isReady: true,
+          isOwner: mem.userId === roomState.ownerId,
+          scoreText: 'Chờ ván sau',
+        };
+      }
+      return null;
     }
     const mem = seatedMembers[seatIdx];
     if (!mem) return null;
@@ -214,7 +236,18 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
   const leftPlayer = leftSeatIdx !== -1 ? getPlayerAtSeat(leftSeatIdx) : null;
   const rightPlayer = rightSeatIdx !== -1 ? getPlayerAtSeat(rightSeatIdx) : null;
   const bottomPlayer = isGameActive
-    ? myGamePlayer
+    ? (myGamePlayer ? { ...myGamePlayer, isOwner: !!isOwner } : (myMember ? {
+        id: myMember.userId,
+        displayName: myMember.displayName,
+        seatIndex: myMember.seatIndex,
+        cardCount: 0,
+        hasPassed: false,
+        isOnline: myMember.isOnline,
+        isCurrentTurn: false,
+        isReady: true,
+        isOwner: !!isOwner,
+        scoreText: 'Ghế chờ ván sau',
+      } : null))
     : myMember
     ? {
         id: myMember.userId,
@@ -333,47 +366,47 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
     seatedMembers.filter((s): s is NonNullable<typeof s> => s !== null).every(s => s.isReady || s.userId === roomState.ownerId);
 
   return (
-    <div className="w-full h-full flex-1 flex flex-col justify-between bg-[#0b0708] relative overflow-hidden select-none p-2 md:p-4">
+    <div className="w-full h-full max-h-[100dvh] flex-1 flex flex-col justify-between bg-[#0b0708] relative overflow-hidden select-none p-1 sm:p-2 md:p-4">
       {/* 1. TOP BAR (Matching Image 2 Reference Layout) */}
-      <div className="w-full flex items-center justify-between z-40 mb-2 px-2">
+      <div className="w-full flex items-center justify-between z-40 mb-1 md:mb-2 px-1 sm:px-2 py-0.5 sm:py-1">
         {/* Top Left: Exit, Menu & Table info pill */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {/* Close/Back button */}
           <button
             onClick={() => (window.location.href = '/')}
-            className="w-8 h-8 rounded-full bg-black/60 border border-slate-700 hover:border-amber-400 text-white flex items-center justify-center transition"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-black/60 border border-slate-700 hover:border-amber-400 text-white flex items-center justify-center transition"
             title="Rời phòng về trang chủ"
           >
-            <X size={18} />
+            <X size={16} />
           </button>
 
           {/* Menu / Rules icon */}
           <button
             onClick={() => setShowRules(true)}
-            className="w-8 h-8 rounded-full bg-black/60 border border-slate-700 hover:border-amber-400 text-white flex items-center justify-center transition"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-black/60 border border-slate-700 hover:border-amber-400 text-white flex items-center justify-center transition"
             title="Luật chơi"
           >
-            <Menu size={18} />
+            <Menu size={16} />
           </button>
 
           {/* Trophy / Stats icon */}
           <button
             onClick={() => setShowHistory(true)}
-            className="w-8 h-8 rounded-full bg-black/60 border border-slate-700 hover:border-amber-400 text-amber-400 flex items-center justify-center transition"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-black/60 border border-slate-700 hover:border-amber-400 text-amber-400 flex items-center justify-center transition"
             title="Bảng thành tích & Lịch sử đấu"
           >
-            <Trophy size={16} />
+            <Trophy size={15} />
           </button>
 
-          {/* Table info pill (Matching Image 2: "20K · Bàn: 6005342") */}
-          <div className="bg-black/75 border border-amber-500/30 rounded-xl px-3 py-1 text-xs shadow">
-            <div className="font-extrabold text-amber-300 font-display flex items-center gap-1.5">
+          {/* Table info pill */}
+          <div className="bg-black/75 border border-amber-500/30 rounded-xl px-2.5 sm:px-3 py-0.5 sm:py-1 text-xs shadow">
+            <div className="font-extrabold text-amber-300 font-display flex items-center gap-1 text-[11px] sm:text-xs">
               <span>{roomState.mode === 'fund' ? 'Góp quỹ' : 'Basic'}</span>
               <span>·</span>
               <span>Bàn: {roomState.code}</span>
             </div>
-            <div className="text-[11px] text-slate-300 flex items-center gap-2">
-              <span>{roomState.name}</span>
+            <div className="text-[10px] sm:text-[11px] text-slate-300 flex items-center gap-2">
+              <span className="truncate max-w-[90px] sm:max-w-none">{roomState.name}</span>
               <span className="text-emerald-400 font-mono flex items-center gap-0.5">
                 <Wifi size={10} /> 45ms
               </span>
@@ -382,14 +415,14 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
         </div>
 
         {/* Top Right: Chat, Sound & Share Invite */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {/* Chat button with unread badge */}
           <button
             onClick={handleOpenChat}
-            className="w-8 h-8 rounded-full bg-black/60 border border-slate-700 hover:border-amber-400 text-amber-300 flex items-center justify-center transition relative"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-black/60 border border-slate-700 hover:border-amber-400 text-amber-300 flex items-center justify-center transition relative"
             title="Khung chat bàn chơi"
           >
-            <MessageSquare size={16} />
+            <MessageSquare size={15} />
             {unreadChatCount > 0 && (
               <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-600 text-white text-[9px] font-black flex items-center justify-center border border-white shadow animate-pulse">
                 {unreadChatCount > 9 ? '9+' : unreadChatCount}
@@ -400,29 +433,29 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
           {/* Copy link button */}
           <button
             onClick={handleCopyLink}
-            className="btn-game-red py-1.5 px-3 text-xs flex items-center gap-1.5"
+            className="btn-game-red py-1 sm:py-1.5 px-2.5 sm:px-3 text-[11px] sm:text-xs flex items-center gap-1"
             title="Sao chép link mời bạn bè"
           >
-            {copied ? <Check size={14} className="text-emerald-300" /> : <Copy size={14} />}
-            <span>{copied ? 'Đã chép link!' : 'Mời bạn'}</span>
+            {copied ? <Check size={13} className="text-emerald-300" /> : <Copy size={13} />}
+            <span className="hidden sm:inline">{copied ? 'Đã chép!' : 'Mời bạn'}</span>
           </button>
 
           {/* Sound mute button */}
           <button
             onClick={handleToggleSound}
-            className="w-8 h-8 rounded-full bg-black/60 border border-slate-700 hover:border-amber-400 text-white flex items-center justify-center transition"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-black/60 border border-slate-700 hover:border-amber-400 text-white flex items-center justify-center transition"
           >
-            {isMuted ? <VolumeX size={16} className="text-red-400" /> : <Volume2 size={16} />}
+            {isMuted ? <VolumeX size={15} className="text-red-400" /> : <Volume2 size={15} />}
           </button>
         </div>
       </div>
 
       {/* 2. THE STADIUM / OVAL CASINO TABLE (Holds Top, Left, Right Opponents & Center Table) */}
-      <div className="flex-1 w-full max-w-5xl mx-auto flex items-center justify-center relative p-1 md:p-3 my-auto min-h-[300px] md:min-h-[380px]">
-        <div className="stadium-table w-full h-[300px] md:h-[380px] relative flex items-center justify-center">
+      <div className="flex-1 min-h-0 w-full max-w-5xl mx-auto flex items-center justify-center relative p-0.5 sm:p-1 md:p-3 my-auto">
+        <div className="stadium-table w-full h-full min-h-[190px] max-h-[46vh] md:max-h-[55vh] relative flex items-center justify-center">
           {/* Top Seat (Opponent) */}
           {topSeatIdx !== -1 && (
-            <div className="absolute -top-7 md:-top-9 left-1/2 -translate-x-1/2 z-20">
+            <div className="absolute -top-3 md:-top-8 left-1/2 -translate-x-1/2 z-20">
               <PlayerSeatView
                 player={topPlayer}
                 seatIndex={topSeatIdx}
@@ -441,7 +474,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
 
           {/* Left Seat (Opponent) */}
           {leftSeatIdx !== -1 && (
-            <div className="absolute left-2 md:left-6 top-1/2 -translate-y-1/2 z-20">
+            <div className="absolute left-1 sm:left-2 md:left-6 top-1/2 -translate-y-1/2 z-20">
               <PlayerSeatView
                 player={leftPlayer}
                 seatIndex={leftSeatIdx}
@@ -459,7 +492,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
           )}
 
           {/* Center Table: Combo Cards or Lobby Host Controls */}
-          <div className="z-10 flex flex-col items-center justify-center px-4">
+          <div className="z-10 flex flex-col items-center justify-center px-1 sm:px-4">
             {isGameActive && gameState ? (
               <TableCenterView
                 currentCombo={gameState.currentCombo}
@@ -468,19 +501,19 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
                 isMyTurn={isMyTurn}
               />
             ) : (
-              <div className="flex flex-col items-center justify-center p-4 text-center z-30">
+              <div className="flex flex-col items-center justify-center p-2 sm:p-4 text-center z-30">
                 {isOwner ? (
-                  <div className="flex flex-col items-center gap-2">
+                  <div className="flex flex-col items-center gap-1.5 sm:gap-2">
                     <button
                       onClick={startGame}
                       disabled={!allReady}
-                      className="btn-game-gold py-3 px-8 text-base md:text-lg shadow-2xl scale-110 flex items-center gap-2"
+                      className="btn-game-gold py-2.5 sm:py-3 px-6 sm:px-8 text-sm sm:text-base md:text-lg shadow-2xl scale-105 sm:scale-110 flex items-center gap-2"
                     >
-                      <Play size={20} fill="#3e2723" />
+                      <Play size={18} fill="#3e2723" />
                       BẮT ĐẦU VÁN ({seatedCount}/{maxPlayers})
                     </button>
                     {!allReady && (
-                      <span className="text-xs text-amber-200/80 bg-black/60 px-3 py-1 rounded-full mt-1 border border-amber-500/20">
+                      <span className="text-[11px] sm:text-xs text-amber-200/80 bg-black/60 px-3 py-1 rounded-full mt-0.5 border border-amber-500/20">
                         {seatedCount < 2
                           ? 'Cần ít nhất 2 người ngồi để bắt đầu'
                           : 'Chờ tất cả người chơi bấm SẴN SÀNG'}
@@ -488,7 +521,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
                     )}
                   </div>
                 ) : (
-                  <div className="bg-black/60 border border-amber-500/30 px-5 py-2.5 rounded-full text-xs md:text-sm font-bold text-amber-300 shadow flex items-center gap-2">
+                  <div className="bg-black/60 border border-amber-500/30 px-4 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-bold text-amber-300 shadow flex items-center gap-2">
                     <Sparkles size={16} /> Đang chờ chủ bàn bắt đầu ván đấu...
                   </div>
                 )}
@@ -498,7 +531,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
 
           {/* Right Seat (Opponent) */}
           {rightSeatIdx !== -1 && (
-            <div className="absolute right-2 md:right-6 top-1/2 -translate-y-1/2 z-20">
+            <div className="absolute right-1 sm:right-2 md:right-6 top-1/2 -translate-y-1/2 z-20">
               <PlayerSeatView
                 player={rightPlayer}
                 seatIndex={rightSeatIdx}
@@ -518,9 +551,9 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
       </div>
 
       {/* 3. BOTTOM AREA: SELF AVATAR (LEFT), ACTION BAR (CENTER), HAND CARDS (CENTER), "XẾP BÀI" BUTTON (RIGHT) */}
-      <div className="w-full relative z-30 flex flex-col items-center pb-2 select-none">
-        {/* Bottom Left: Self Avatar & Score (Matching Image 1: "Nguyên 9.32M") */}
-        <div className="absolute left-2 md:left-6 bottom-2 z-30 hidden sm:flex items-center">
+      <div className="w-full relative z-30 flex flex-col items-center pb-1 sm:pb-2 select-none">
+        {/* Bottom Left: Self Avatar & Score */}
+        <div className="absolute left-2 md:left-6 bottom-1 sm:bottom-2 z-30 hidden sm:flex items-center">
           <PlayerSeatView
             player={bottomPlayer}
             seatIndex={bottomSeatIdx}
@@ -534,7 +567,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
           />
         </div>
 
-        {/* Lobby Controls for Seated Player / Spectator */}
+        {/* Lobby Controls for Seated Player */}
         {!isGameActive && myMember && (
           <div className="mb-2 flex items-center gap-2">
             {!isOwner && (
@@ -556,22 +589,40 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
           </div>
         )}
 
-        {!isGameActive && isSpectator && (
-          <div className="mb-2">
+        {/* Waiting Seat Controls when game is active */}
+        {isGameActive && myMember && !myGamePlayer && (
+          <div className="mb-2 flex items-center gap-2 z-40 bg-black/80 border border-amber-500/50 px-3.5 py-1.5 rounded-full shadow-2xl">
+            <span className="text-[11px] sm:text-xs font-bold text-amber-300 flex items-center gap-1.5">
+              <span>⏳ Đang ngồi ghế {myMember.seatIndex + 1} chờ</span>
+              <span className="text-slate-300 hidden sm:inline">· Bạn sẽ tham gia thi đấu ở ván kế tiếp</span>
+            </span>
+            <button
+              onClick={leaveSeat}
+              className="btn-game-red py-1 px-3 text-[11px] flex items-center gap-1 ml-1"
+              title="Rời khỏi ghế chờ"
+            >
+              <UserX size={12} /> Hủy chờ
+            </button>
+          </div>
+        )}
+
+        {/* Spectator Button to Take Empty Seat (both in lobby and during active game) */}
+        {isSpectator && seatedCount < maxPlayers && (
+          <div className="mb-2 z-40">
             <button
               onClick={() => {
                 const emptyIdx = seatedMembers.findIndex(s => s === null);
                 if (emptyIdx !== -1) takeSeat(emptyIdx);
               }}
-              className="btn-game-gold py-2 px-6 text-sm"
+              className="btn-game-gold py-2 px-6 text-xs sm:text-sm shadow-2xl flex items-center gap-1.5 animate-pulse"
             >
-              + Ngồi Vào Ghế Chơi
+              <span>{isGameActive ? '+ Ngồi Vào Ghế Chờ (Vào ván sau)' : '+ Ngồi Vào Ghế Chơi'}</span>
             </button>
           </div>
         )}
 
-        {/* In-Game Action Bar: BỎ LƯỢT / GỢI Ý / ĐÁNH with instant validation alerts */}
-        {isGameActive && gameState && !isSpectator && (
+        {/* In-Game Action Bar: only show if user is actively playing cards in this round */}
+        {isGameActive && gameState && myGamePlayer && (
           <ActionBar
             hand={myHand}
             selectedCardIds={selectedCardIds}
@@ -585,19 +636,19 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
           />
         )}
 
-        {/* In-Game Hand Cards Horizontal Row + "XẾP BÀI" Pill Button (Matching Image 1) */}
-        {isGameActive && (
-          <div className="w-full max-w-4xl flex items-center justify-center relative px-2">
+        {/* In-Game Hand Cards Horizontal Row + "XẾP BÀI" Pill Button: only if actively playing in this round */}
+        {isGameActive && myGamePlayer && (
+          <div className="w-full max-w-4xl flex items-center justify-center relative px-1 sm:px-2">
             <HandView
               hand={myHand}
               selectedCardIds={selectedCardIds}
               onToggleSelect={handleToggleSelect}
             />
 
-            {/* "XẾP BÀI" Button on Right Side of Cards (Matching Image 1!) */}
+            {/* "XẾP BÀI" Button on Right Side of Cards */}
             <button
               onClick={() => setSortBySuit(!sortBySuit)}
-              className="btn-game-red py-2 px-4 md:px-5 rounded-full font-black text-xs md:text-sm shadow-2xl ml-2 shrink-0 self-center tracking-wider active:scale-95 transition"
+              className="btn-game-red py-1.5 sm:py-2 px-3 sm:px-5 rounded-full font-black text-[11px] sm:text-sm shadow-2xl ml-1.5 sm:ml-2 shrink-0 self-center tracking-wider active:scale-95 transition"
               title={sortBySuit ? 'Đang xếp theo chất (bấm để xếp theo giá trị)' : 'Đang xếp theo giá trị (bấm để xếp theo chất)'}
             >
               XẾP BÀI

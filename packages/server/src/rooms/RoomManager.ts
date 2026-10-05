@@ -96,18 +96,53 @@ export class Room {
       this.disconnectTimers.delete(user.id);
     }
 
-    // If game is active, only reconnecting to own seat is allowed
+    // If game is active: allow reconnecting to own seat OR taking an empty waiting seat if < 4 players
     if (this.activeGame && this.activeGame.phase === 'playing') {
       const existing = this.getMemberByUserId(user.id);
       if (existing) {
         existing.isOnline = true;
         existing.socketId = socketId;
         existing.offlineSince = null;
-        this.activeGame.setPlayerOnline(user.id, true);
+        if (this.activeGame.players.some(p => p.id === user.id)) {
+          this.activeGame.setPlayerOnline(user.id, true);
+        }
         this.broadcast();
         return { success: true };
       }
-      return { success: false, error: 'Ván bài đang diễn ra, bạn vui lòng chờ ván sau để vào ghế!' };
+
+      // Check if room is already full (max 4 seated players)
+      const seatedCount = this.seats.filter(s => s !== null).length;
+      if (seatedCount >= this.maxPlayers) {
+        return { success: false, error: 'Phòng đã đủ 4 người chơi, vui lòng làm khán giả theo dõi!' };
+      }
+
+      if (seatIndex < 0 || seatIndex >= this.maxPlayers) {
+        return { success: false, error: 'Vị trí ghế không hợp lệ' };
+      }
+
+      if (this.seats[seatIndex] !== null) {
+        return { success: false, error: 'Ghế này đã có người ngồi' };
+      }
+
+      // Allow spectator to take seat as a waiting player for next game!
+      this.seats[seatIndex] = {
+        userId: user.id,
+        username: user.username,
+        displayName: user.displayName,
+        seatIndex,
+        isReady: true,
+        isOnline: true,
+        socketId,
+      };
+
+      this.addChatMessage(
+        { id: 'system', displayName: 'Hệ thống' },
+        `🔔 ${user.displayName} đã vào ghế ${seatIndex + 1} chờ ván tiếp theo.`,
+        true
+      );
+
+      this.broadcast();
+      return { success: true };
     }
 
     if (seatIndex < 0 || seatIndex >= this.maxPlayers) {
@@ -148,11 +183,25 @@ export class Room {
 
   public leaveSeat(userId: string): { success: boolean; error?: string } {
     if (this.activeGame && this.activeGame.phase === 'playing') {
+      const inGame = this.activeGame.players.some(p => p.id === userId);
+      if (inGame) {
+        const member = this.getMemberByUserId(userId);
+        if (member) {
+          member.isOnline = false;
+          member.socketId = null;
+          this.activeGame.setPlayerOnline(userId, false);
+          this.broadcast();
+        }
+        return { success: true };
+      }
+
+      // Waiting player who hasn't been dealt cards yet can leave seat cleanly
       const member = this.getMemberByUserId(userId);
       if (member) {
-        member.isOnline = false;
-        member.socketId = null;
-        this.activeGame.setPlayerOnline(userId, false);
+        this.seats[member.seatIndex] = null;
+        if (userId === this.ownerId) {
+          this.handoverHost();
+        }
         this.broadcast();
       }
       return { success: true };
