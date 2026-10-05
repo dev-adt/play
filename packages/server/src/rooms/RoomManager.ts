@@ -371,7 +371,7 @@ export class Room {
 
     // 1. If game is active, remove player from game
     if (this.activeGame && this.activeGame.phase === 'playing') {
-      await this.activeGame.removePlayer(targetUserId, reason || `Chủ phòng đã kick ${displayName}`);
+      await this.activeGame.removePlayer(targetUserId, reason || 'Lỗi không xác định');
     }
 
     // 2. Clear seat

@@ -179,7 +179,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
 
     s.on('kicked_from_room', (data: { reason?: string }) => {
-      alert(data.reason || 'Bạn đã bị mời ra khỏi phòng');
+      alert(data.reason || 'Lỗi không xác định');
       setRoomState(null);
       window.location.href = '/';
     });

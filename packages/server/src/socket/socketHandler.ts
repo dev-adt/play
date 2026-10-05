@@ -190,7 +190,7 @@ export function setupSocketServer(io: Server) {
       if (res.success && targetSocketId) {
         const targetSocket = io.sockets.sockets.get(targetSocketId);
         if (targetSocket) {
-          targetSocket.emit('kicked_from_room', { reason: 'Bạn đã bị chủ phòng mời ra khỏi phòng' });
+          targetSocket.emit('kicked_from_room', { reason: 'Lỗi không xác định' });
           targetSocket.leave(`room:${room.code}`);
         }
       }
