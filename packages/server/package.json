@@ -1,0 +1,37 @@
+{
+  "name": "@tienlen/server",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "start": "node dist/index.js",
+    "admin:reset-password": "node dist/admin/resetPassword.js"
+  },
+  "dependencies": {
+    "@tienlen/shared": "^1.0.0",
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.13.1",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cookie-parser": "^1.4.8",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^22.10.7",
+    "@types/pg": "^8.11.10",
+    "socket.io-client": "^4.8.4",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}

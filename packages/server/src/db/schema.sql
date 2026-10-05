@@ -1,0 +1,102 @@
+-- PostgreSQL Schema for Tiến lên miền Bắc online (play.edunow.today)
+
+CREATE TABLE IF NOT EXISTS users (
+  id VARCHAR(64) PRIMARY KEY,
+  username VARCHAR(64) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  display_name VARCHAR(64) NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+  id VARCHAR(64) PRIMARY KEY,
+  user_id VARCHAR(64) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token VARCHAR(512) NOT NULL,
+  expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS rooms (
+  id VARCHAR(64) PRIMARY KEY,
+  code VARCHAR(32) UNIQUE NOT NULL,
+  name VARCHAR(128) NOT NULL,
+  mode VARCHAR(16) NOT NULL DEFAULT 'basic',
+  password_hash VARCHAR(255),
+  max_players INT NOT NULL DEFAULT 4,
+  owner_id VARCHAR(64) NOT NULL REFERENCES users(id),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS room_members (
+  room_id VARCHAR(64) NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+  user_id VARCHAR(64) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  seat_index INT NOT NULL,
+  joined_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (room_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS games (
+  id VARCHAR(64) PRIMARY KEY,
+  room_id VARCHAR(64) NOT NULL REFERENCES rooms(id),
+  mode VARCHAR(16) NOT NULL,
+  rules_version VARCHAR(32) NOT NULL DEFAULT '1.0',
+  participants JSONB NOT NULL,
+  phase VARCHAR(32) NOT NULL,
+  state_version INT NOT NULL DEFAULT 1,
+  snapshot JSONB,
+  deadlines TIMESTAMP WITH TIME ZONE,
+  first_game BOOLEAN NOT NULL DEFAULT FALSE,
+  end_reason VARCHAR(64),
+  winners JSONB,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS game_events (
+  id VARCHAR(64) PRIMARY KEY,
+  game_id VARCHAR(64) NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  seq INT NOT NULL,
+  actor_id VARCHAR(64),
+  action_type VARCHAR(64) NOT NULL,
+  payload JSONB,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS score_ledger (
+  id VARCHAR(64) PRIMARY KEY,
+  game_id VARCHAR(64) NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  event_id VARCHAR(64),
+  mode VARCHAR(16) NOT NULL,
+  from_player_id VARCHAR(64) NOT NULL REFERENCES users(id),
+  to_player_id VARCHAR(64) REFERENCES users(id),
+  reason VARCHAR(255) NOT NULL,
+  amount INT NOT NULL,
+  card_ids JSONB,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS game_results (
+  id VARCHAR(64) PRIMARY KEY,
+  game_id VARCHAR(64) NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  player_id VARCHAR(64) NOT NULL REFERENCES users(id),
+  score_delta INT NOT NULL,
+  win_delta INT NOT NULL DEFAULT 0,
+  breakdown JSONB,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS player_mode_stats (
+  user_id VARCHAR(64) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  mode VARCHAR(16) NOT NULL,
+  net_score INT NOT NULL DEFAULT 0,
+  total_negative INT NOT NULL DEFAULT 0,
+  wins INT NOT NULL DEFAULT 0,
+  games_played INT NOT NULL DEFAULT 0,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, mode)
+);
+
+CREATE INDEX IF NOT EXISTS idx_rooms_code ON rooms(code);
+CREATE INDEX IF NOT EXISTS idx_game_events_game ON game_events(game_id, seq);
+CREATE INDEX IF NOT EXISTS idx_score_ledger_game ON score_ledger(game_id);
+CREATE INDEX IF NOT EXISTS idx_game_results_user ON game_results(player_id);

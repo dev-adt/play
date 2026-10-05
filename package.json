@@ -1,0 +1,23 @@
+{
+  "name": "play-tien-len-mien-bac",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tiến lên miền Bắc online - Realtime multiplayer card game",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "npm run test --workspace=packages/shared",
+    "test:server": "npm run test --workspace=packages/server",
+    "build": "npm run build --workspaces",
+    "dev:shared": "npm run dev --workspace=packages/shared",
+    "dev:server": "npm run dev --workspace=packages/server",
+    "dev:client": "npm run dev --workspace=packages/client",
+    "lint": "echo 'No lint specified'",
+    "start": "node packages/server/dist/index.js"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}
