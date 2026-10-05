@@ -1,13 +1,28 @@
 import React, { useState } from 'react';
 import { useSocket } from '../context/SocketContext';
 import { useAuth } from '../context/AuthContext';
-import { Card, Combination, identifyCombination, canBeat, sortCards, compareCards } from '@tienlen/shared';
+import { Card, Combination, identifyCombination, canBeat, sortCards } from '@tienlen/shared';
 import { PlayerSeatView } from '../components/PlayerSeatView';
 import { TableCenterView } from '../components/TableCenterView';
 import { HandView } from '../components/HandView';
 import { ActionBar } from '../components/ActionBar';
 import { ResultModal } from '../components/ResultModal';
-import { LobbyPage } from './LobbyPage';
+import { sounds } from '../audio';
+import {
+  X,
+  Menu,
+  Volume2,
+  VolumeX,
+  Share2,
+  Copy,
+  Check,
+  Play,
+  UserX,
+  BookOpen,
+  Wifi,
+  Sparkles,
+} from 'lucide-react';
+import { RulesModal } from '../components/RulesModal';
 
 interface GameRoomPageProps {
   roomCode: string;
@@ -15,68 +30,133 @@ interface GameRoomPageProps {
 
 export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
   const { user } = useAuth();
-  const { roomState, playCards, passTurn, nextGame } = useSocket();
+  const {
+    roomState,
+    takeSeat,
+    leaveSeat,
+    toggleReady,
+    startGame,
+    playCards,
+    passTurn,
+    nextGame,
+  } = useSocket();
+
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
   const [sortBySuit, setSortBySuit] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [showRules, setShowRules] = useState(false);
+  const [isMuted, setIsMuted] = useState(sounds.isMuted);
 
-  if (!roomState) return null;
+  const handleToggleSound = () => {
+    setIsMuted(sounds.toggleMute());
+  };
 
-  // If game is not active, render Lobby
-  if (!roomState.isGameActive || !roomState.gameState) {
-    return <LobbyPage roomCode={roomCode} />;
+  const handleCopyLink = () => {
+    const fullUrl = `${window.location.origin}/room/${roomCode}`;
+    if (navigator.share) {
+      navigator.share({
+        title: `Vào chơi Tiến lên miền Bắc: ${roomState?.name || 'Bàn chơi'}`,
+        url: fullUrl,
+      }).catch(() => {});
+    } else if (navigator.clipboard) {
+      navigator.clipboard.writeText(fullUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  // If roomState is still loading from socket, show elegant table with loading
+  if (!roomState) {
+    return (
+      <div className="w-full h-full flex-1 flex items-center justify-center bg-[#0b0708] p-4">
+        <div className="stadium-table w-full max-w-4xl h-[520px] flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-12 h-12 rounded-full border-4 border-amber-400 border-t-transparent animate-spin mx-auto mb-3" />
+            <div className="text-amber-400 font-bold font-display text-base">
+              Đang vào bàn {roomCode}...
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
+  const isGameActive = roomState.isGameActive && !!roomState.gameState;
   const gameState = roomState.gameState;
   const mySeat = roomState.mySeatIndex;
   const isSpectator = mySeat === -1;
+  const isOwner = user && roomState.ownerId === user.userId;
 
   // Hand cards
-  let myHand: Card[] = gameState.myHand || [];
+  let myHand: Card[] = (gameState && gameState.myHand) || [];
   if (sortBySuit) {
-    // Sort by suit then rank
     myHand = [...myHand].sort((a, b) => {
       if (a.suitValue !== b.suitValue) return a.suitValue - b.suitValue;
       return a.rankValue - b.rankValue;
     });
   } else {
-    // Default: sort by rank then suit
     myHand = sortCards(myHand);
   }
 
-  // Find opponent seats relative to my seat (bottom)
-  const allPlayers = gameState.players;
-  const myPlayer = allPlayers.find(p => p.seatIndex === mySeat);
-  const isMyTurn = myPlayer ? myPlayer.isCurrentTurn : false;
-  const hasPassed = myPlayer ? myPlayer.hasPassed : false;
+  // Seated players in lobby
+  const seatedMembers = roomState.seats;
+  const myMember = mySeat !== -1 ? seatedMembers[mySeat] : null;
 
-  // Calculate relative positions for 2, 3, or 4 players:
-  // If 4 players: (mySeat + 1) -> right, (mySeat + 2) -> top, (mySeat + 3) -> left
-  // If 2 players: opponent -> top
-  // If 3 players: (mySeat + 1) -> right, (mySeat + 2) -> left
-  const otherPlayers = allPlayers.filter(p => p.seatIndex !== mySeat);
+  // Active game players mapping
+  const allGamePlayers = gameState?.players || [];
+  const myGamePlayer = allGamePlayers.find(p => p.seatIndex === mySeat);
+  const isMyTurn = myGamePlayer ? myGamePlayer.isCurrentTurn : false;
+  const hasPassed = myGamePlayer ? myGamePlayer.hasPassed : false;
 
-  let topPlayer: any = otherPlayers[0] || null;
-  let leftPlayer: any = null;
-  let rightPlayer: any = null;
+  // Positions relative to my seat (or seat 0 if spectator)
+  const baseSeat = mySeat !== -1 ? mySeat : 0;
+  const getPlayerAtRelativeOffset = (offset: number) => {
+    const targetSeatIdx = (baseSeat + offset) % 4;
+    if (isGameActive) {
+      return allGamePlayers.find(p => p.seatIndex === targetSeatIdx) || null;
+    }
+    const mem = seatedMembers[targetSeatIdx];
+    if (!mem) return null;
+    return {
+      id: mem.userId,
+      displayName: mem.displayName,
+      seatIndex: mem.seatIndex,
+      cardCount: 13,
+      hasPassed: false,
+      isOnline: mem.isOnline,
+      isCurrentTurn: false,
+      isReady: mem.isReady,
+      isOwner: mem.userId === roomState.ownerId,
+    };
+  };
 
-  if (allPlayers.length === 4) {
-    rightPlayer = allPlayers.find(p => p.seatIndex === (mySeat + 1) % 4);
-    topPlayer = allPlayers.find(p => p.seatIndex === (mySeat + 2) % 4);
-    leftPlayer = allPlayers.find(p => p.seatIndex === (mySeat + 3) % 4);
-  } else if (allPlayers.length === 3) {
-    rightPlayer = allPlayers.find(p => p.seatIndex === (mySeat + 1) % 3);
-    leftPlayer = allPlayers.find(p => p.seatIndex === (mySeat + 2) % 3);
-    topPlayer = null as any;
-  }
+  const topPlayer = getPlayerAtRelativeOffset(2);
+  const leftPlayer = getPlayerAtRelativeOffset(3);
+  const rightPlayer = getPlayerAtRelativeOffset(1);
+  const bottomPlayer = isGameActive
+    ? myGamePlayer
+    : myMember
+    ? {
+        id: myMember.userId,
+        displayName: myMember.displayName,
+        seatIndex: myMember.seatIndex,
+        cardCount: 13,
+        hasPassed: false,
+        isOnline: true,
+        isCurrentTurn: false,
+        isReady: myMember.isReady,
+        isOwner: isOwner,
+      }
+    : null;
 
-  // Card selection toggle
+  // Card select
   const handleToggleSelect = (cardId: string) => {
     setSelectedCardIds(prev =>
       prev.includes(cardId) ? prev.filter(id => id !== cardId) : [...prev, cardId]
     );
   };
 
-  // Play cards
+  // Play
   const handlePlay = async () => {
     if (selectedCardIds.length === 0) return;
     const res = await playCards(selectedCardIds);
@@ -85,7 +165,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
     }
   };
 
-  // Pass turn
+  // Pass
   const handlePass = async () => {
     const res = await passTurn();
     if (res.success) {
@@ -95,18 +175,15 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
 
   // Suggest move logic
   const handleSuggest = () => {
+    if (!gameState) return;
     const cur = gameState.currentCombo;
     const cards = myHand;
 
-    // 1. Table is empty: pick lowest single card
     if (!cur) {
-      if (cards.length > 0) {
-        setSelectedCardIds([cards[0].id]);
-      }
+      if (cards.length > 0) setSelectedCardIds([cards[0].id]);
       return;
     }
 
-    // 2. Cur is single: find lowest beating single card
     if (cur.type === 'single') {
       for (const c of cards) {
         const combo = identifyCombination([c]);
@@ -115,9 +192,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
           return;
         }
       }
-      // Or hàng chặt 2
       if (cur.cards[0].rank === '2') {
-        // Try tứ quý
         for (let i = 0; i <= cards.length - 4; i++) {
           const quad = cards.slice(i, i + 4);
           const combo = identifyCombination(quad);
@@ -127,10 +202,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
           }
         }
       }
-    }
-
-    // 3. Cur is pair: find lowest beating pair
-    if (cur.type === 'pair') {
+    } else if (cur.type === 'pair') {
       for (let i = 0; i < cards.length; i++) {
         for (let j = i + 1; j < cards.length; j++) {
           const combo = identifyCombination([cards[i], cards[j]]);
@@ -140,10 +212,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
           }
         }
       }
-    }
-
-    // 4. Cur is triple: find lowest beating triple
-    if (cur.type === 'triple') {
+    } else if (cur.type === 'triple') {
       for (let i = 0; i < cards.length; i++) {
         for (let j = i + 1; j < cards.length; j++) {
           for (let k = j + 1; k < cards.length; k++) {
@@ -155,10 +224,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
           }
         }
       }
-    }
-
-    // 5. Cur is straight: search for same length straight
-    if (cur.type === 'straight') {
+    } else if (cur.type === 'straight') {
       const len = cur.length;
       if (cards.length >= len) {
         for (let i = 0; i <= cards.length - len; i++) {
@@ -173,81 +239,203 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
     }
   };
 
-  const currentComboPlayer = allPlayers.find(p => p.id === gameState.currentComboPlayerId);
+  const currentComboPlayer = allGamePlayers.find(p => p.id === gameState?.currentComboPlayerId);
+
+  // Check lobby ready state
+  const seatedCount = seatedMembers.filter(s => s !== null).length;
+  const allReady =
+    seatedCount >= 2 &&
+    seatedMembers.filter((s): s is NonNullable<typeof s> => s !== null).every(s => s.isReady || s.userId === roomState.ownerId);
 
   return (
-    <div className="flex-1 w-full max-w-5xl mx-auto p-2 md:p-4 flex flex-col justify-between select-none relative">
-      {/* Casino Felt Table */}
-      <div className="casino-table flex-1 flex flex-col justify-between p-3 md:p-6 min-h-[540px] relative">
-        {/* Top Opponent */}
-        <div className="w-full flex justify-center z-10">
-          {topPlayer && (
-            <PlayerSeatView
-              player={topPlayer}
-              turnDeadline={gameState.turnDeadline}
-              turnTimeoutSeconds={gameState.turnTimeoutSeconds}
-              isPendingDut3Bich={gameState.pendingDut3BichPlayerId === topPlayer.id}
-              position="top"
-            />
-          )}
+    <div className="w-full h-full flex-1 flex flex-col justify-between bg-[#0b0708] relative overflow-hidden select-none p-2 md:p-4">
+      {/* 1. TOP BAR (Matching Image 2 Reference Layout) */}
+      <div className="w-full flex items-center justify-between z-40 mb-2 px-2">
+        {/* Top Left: Exit, Menu & Table info pill */}
+        <div className="flex items-center gap-2">
+          {/* Close/Back button */}
+          <button
+            onClick={() => (window.location.href = '/')}
+            className="w-8 h-8 rounded-full bg-black/60 border border-slate-700 hover:border-amber-400 text-white flex items-center justify-center transition"
+            title="Rời phòng về trang chủ"
+          >
+            <X size={18} />
+          </button>
+
+          {/* Menu / Rules icon */}
+          <button
+            onClick={() => setShowRules(true)}
+            className="w-8 h-8 rounded-full bg-black/60 border border-slate-700 hover:border-amber-400 text-white flex items-center justify-center transition"
+            title="Luật chơi"
+          >
+            <Menu size={18} />
+          </button>
+
+          {/* Table info pill (Matching Image 2: "20K · Bàn: 6005342") */}
+          <div className="bg-black/75 border border-amber-500/30 rounded-xl px-3 py-1 text-xs shadow">
+            <div className="font-extrabold text-amber-300 font-display flex items-center gap-1.5">
+              <span>{roomState.mode === 'fund' ? 'Góp quỹ' : 'Basic'}</span>
+              <span>·</span>
+              <span>Bàn: {roomState.code}</span>
+            </div>
+            <div className="text-[11px] text-slate-300 flex items-center gap-2">
+              <span>{roomState.name}</span>
+              <span className="text-emerald-400 font-mono flex items-center gap-0.5">
+                <Wifi size={10} /> 45ms
+              </span>
+            </div>
+          </div>
         </div>
 
-        {/* Middle Row: Left Opponent - Table Center - Right Opponent */}
-        <div className="flex items-center justify-between w-full my-auto px-1 md:px-4 z-10 gap-2">
-          {/* Left Player */}
+        {/* Top Right: Sound & Share Invite */}
+        <div className="flex items-center gap-2">
+          {/* Copy link button */}
+          <button
+            onClick={handleCopyLink}
+            className="btn-game-red py-1.5 px-3 text-xs flex items-center gap-1.5"
+            title="Sao chép link mời bạn bè"
+          >
+            {copied ? <Check size={14} className="text-emerald-300" /> : <Copy size={14} />}
+            <span>{copied ? 'Đã chép link!' : 'Mời bạn'}</span>
+          </button>
+
+          {/* Sound mute button */}
+          <button
+            onClick={handleToggleSound}
+            className="w-8 h-8 rounded-full bg-black/60 border border-slate-700 hover:border-amber-400 text-white flex items-center justify-center transition"
+          >
+            {isMuted ? <VolumeX size={16} className="text-red-400" /> : <Volume2 size={16} />}
+          </button>
+        </div>
+      </div>
+
+      {/* 2. THE STADIUM / OVAL CASINO TABLE (Matching Image 2) */}
+      <div className="stadium-table flex-1 flex flex-col justify-between p-3 md:p-6 w-full max-w-5xl mx-auto my-auto relative min-h-[500px]">
+        {/* Top Seat (North) */}
+        <div className="w-full flex justify-center z-20">
+          <PlayerSeatView
+            player={topPlayer}
+            seatIndex={(baseSeat + 2) % 4}
+            turnDeadline={gameState?.turnDeadline}
+            turnTimeoutSeconds={gameState?.turnTimeoutSeconds}
+            isPendingDut3Bich={gameState?.pendingDut3BichPlayerId === topPlayer?.id}
+            position="top"
+            isLobby={!isGameActive}
+            onTakeSeat={takeSeat}
+          />
+        </div>
+
+        {/* Middle Row: Left Seat (West) - Center Table (Combo) - Right Seat (East) */}
+        <div className="w-full flex items-center justify-between my-auto px-1 md:px-6 z-20">
+          {/* Left Seat */}
           <div className="w-36 flex justify-start">
-            {leftPlayer && (
-              <PlayerSeatView
-                player={leftPlayer}
-                turnDeadline={gameState.turnDeadline}
-                turnTimeoutSeconds={gameState.turnTimeoutSeconds}
-                isPendingDut3Bich={gameState.pendingDut3BichPlayerId === leftPlayer.id}
-                position="left"
-              />
-            )}
-          </div>
-
-          {/* Center Table */}
-          <div className="flex-1 flex justify-center">
-            <TableCenterView
-              currentCombo={gameState.currentCombo}
-              currentComboPlayerName={currentComboPlayer?.displayName}
-              chopNotices={gameState.chopNotices}
-              isMyTurn={isMyTurn}
+            <PlayerSeatView
+              player={leftPlayer}
+              seatIndex={(baseSeat + 3) % 4}
+              turnDeadline={gameState?.turnDeadline}
+              turnTimeoutSeconds={gameState?.turnTimeoutSeconds}
+              isPendingDut3Bich={gameState?.pendingDut3BichPlayerId === leftPlayer?.id}
+              position="left"
+              isLobby={!isGameActive}
+              onTakeSeat={takeSeat}
             />
           </div>
 
-          {/* Right Player */}
-          <div className="w-36 flex justify-end">
-            {rightPlayer && (
-              <PlayerSeatView
-                player={rightPlayer}
-                turnDeadline={gameState.turnDeadline}
-                turnTimeoutSeconds={gameState.turnTimeoutSeconds}
-                isPendingDut3Bich={gameState.pendingDut3BichPlayerId === rightPlayer.id}
-                position="right"
+          {/* Center Table: Combo or Lobby Host Controls */}
+          <div className="flex-1 flex flex-col items-center justify-center">
+            {isGameActive && gameState ? (
+              <TableCenterView
+                currentCombo={gameState.currentCombo}
+                currentComboPlayerName={currentComboPlayer?.displayName}
+                chopNotices={gameState.chopNotices}
+                isMyTurn={isMyTurn}
               />
+            ) : (
+              // Lobby Center: Start Game Button (for Owner) or Waiting Status
+              <div className="flex flex-col items-center justify-center p-4 text-center z-30">
+                {isOwner ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <button
+                      onClick={startGame}
+                      disabled={!allReady}
+                      className="btn-game-gold py-3 px-8 text-base md:text-lg shadow-2xl scale-110 flex items-center gap-2"
+                    >
+                      <Play size={20} fill="#3e2723" />
+                      BẮT ĐẦU VÁN ({seatedCount}/4)
+                    </button>
+                    {!allReady && (
+                      <span className="text-xs text-amber-200/80 bg-black/60 px-3 py-1 rounded-full mt-1 border border-amber-500/20">
+                        {seatedCount < 2
+                          ? 'Cần ít nhất 2 người ngồi để bắt đầu'
+                          : 'Chờ tất cả người chơi bấm SẴN SÀNG'}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="bg-black/60 border border-amber-500/30 px-5 py-2.5 rounded-full text-xs md:text-sm font-bold text-amber-300 shadow flex items-center gap-2">
+                    <Sparkles size={16} /> Đang chờ chủ bàn bắt đầu ván đấu...
+                  </div>
+                )}
+              </div>
             )}
+          </div>
+
+          {/* Right Seat */}
+          <div className="w-36 flex justify-end">
+            <PlayerSeatView
+              player={rightPlayer}
+              seatIndex={(baseSeat + 1) % 4}
+              turnDeadline={gameState?.turnDeadline}
+              turnTimeoutSeconds={gameState?.turnTimeoutSeconds}
+              isPendingDut3Bich={gameState?.pendingDut3BichPlayerId === rightPlayer?.id}
+              position="right"
+              isLobby={!isGameActive}
+              onTakeSeat={takeSeat}
+            />
           </div>
         </div>
 
-        {/* Bottom Area: Self Seat + Hand */}
-        <div className="w-full flex flex-col items-center justify-end z-20 mt-auto">
-          {/* My Player Seat Status Bar */}
-          {myPlayer && (
-            <div className="mb-1">
-              <PlayerSeatView
-                player={myPlayer}
-                turnDeadline={gameState.turnDeadline}
-                turnTimeoutSeconds={gameState.turnTimeoutSeconds}
-                isPendingDut3Bich={gameState.pendingDut3BichPlayerId === myPlayer.id}
-                position="bottom"
-              />
+        {/* Bottom Area: Self Seat + Controls + Hand (Matching Image 2) */}
+        <div className="w-full flex flex-col items-center justify-end z-30 mt-auto">
+          {/* If In Lobby & Seated: show Ready & Leave buttons */}
+          {!isGameActive && myMember && (
+            <div className="mb-2 flex items-center gap-2">
+              {!isOwner && (
+                <button
+                  onClick={toggleReady}
+                  className={`btn-game-gold py-1.5 px-6 text-xs md:text-sm ${
+                    myMember.isReady ? 'bg-slate-700' : ''
+                  }`}
+                >
+                  {myMember.isReady ? 'HỦY SẴN SÀNG' : 'SẴN SÀNG'}
+                </button>
+              )}
+              <button
+                onClick={leaveSeat}
+                className="btn-game-red py-1.5 px-4 text-xs flex items-center gap-1"
+              >
+                <UserX size={14} /> Rời ghế
+              </button>
             </div>
           )}
 
-          {/* Action Bar */}
-          {!isSpectator && (
+          {/* If Spectator in lobby: prompt to take seat */}
+          {!isGameActive && isSpectator && (
+            <div className="mb-2">
+              <button
+                onClick={() => {
+                  const emptyIdx = seatedMembers.findIndex(s => s === null);
+                  if (emptyIdx !== -1) takeSeat(emptyIdx);
+                }}
+                className="btn-game-gold py-2 px-6 text-sm"
+              >
+                + Ngồi Vào Ghế Chơi
+              </button>
+            </div>
+          )}
+
+          {/* In-Game Action Bar */}
+          {isGameActive && gameState && !isSpectator && (
             <ActionBar
               hand={myHand}
               selectedCardIds={selectedCardIds}
@@ -262,17 +450,22 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
             />
           )}
 
-          {/* Hand Cards */}
-          <HandView
-            hand={myHand}
-            selectedCardIds={selectedCardIds}
-            onToggleSelect={handleToggleSelect}
-          />
+          {/* Player's Hand Cards (Clean overlapping matching Image 2) */}
+          {isGameActive && (
+            <HandView
+              hand={myHand}
+              selectedCardIds={selectedCardIds}
+              onToggleSelect={handleToggleSelect}
+            />
+          )}
         </div>
       </div>
 
+      {/* Rules Modal */}
+      {showRules && <RulesModal onClose={() => setShowRules(false)} />}
+
       {/* Result Modal when game ends */}
-      {gameState.phase === 'ended' && gameState.result && user && (
+      {gameState?.phase === 'ended' && gameState.result && user && (
         <ResultModal
           result={gameState.result}
           players={gameState.players}

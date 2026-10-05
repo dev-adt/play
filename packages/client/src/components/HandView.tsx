@@ -16,18 +16,15 @@ export const HandView: React.FC<HandViewProps> = ({
   const cardCount = hand.length;
 
   return (
-    <div className="w-full flex justify-center items-end py-2 px-1 relative select-none">
+    <div className="w-full flex justify-center items-end relative select-none pb-1">
       <div
-        className="flex items-end justify-center relative overflow-x-auto max-w-full pb-6 pt-8 px-4"
-        style={{
-          minHeight: '120px',
-        }}
+        className="flex items-end justify-center relative overflow-x-auto max-w-full pb-4 pt-6 px-4"
+        style={{ minHeight: '110px' }}
       >
         {hand.map((card, idx) => {
           const isSelected = selectedCardIds.includes(card.id);
-          // Overlap cards: negative margin-left on all except the first card
-          // Dynamically adjust overlap based on card count
-          const overlap = cardCount > 10 ? -28 : cardCount > 6 ? -22 : -14;
+          // Overlap cards smoothly so every card's rank & suit is readable (matching Image 2)
+          const overlap = cardCount > 11 ? -32 : cardCount > 8 ? -26 : -20;
 
           return (
             <div

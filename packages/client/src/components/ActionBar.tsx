@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card, Combination, identifyCombination, canBeat } from '@tienlen/shared';
-import { Play, SkipForward, ArrowUpDown, Wand2, AlertTriangle, XCircle } from 'lucide-react';
+import { Play, SkipForward, Wand2, AlertTriangle, XCircle, Shuffle } from 'lucide-react';
 
 interface ActionBarProps {
   hand: Card[];
@@ -60,77 +60,75 @@ export const ActionBar: React.FC<ActionBarProps> = ({
   }
 
   return (
-    <div className="flex flex-col items-center gap-2 w-full max-w-xl mx-auto px-2">
+    <div className="flex flex-col items-center gap-1.5 w-full max-w-xl mx-auto px-2 select-none z-30">
       {/* Warnings & validation messages */}
       {isAboutToFinishWithTwos && (
-        <div className="bg-red-900/90 border border-red-500 text-red-200 text-xs px-3 py-1.5 rounded-xl shadow flex items-center gap-1.5 animate-pulse">
-          <AlertTriangle size={16} className="text-amber-400 shrink-0" />
+        <div className="bg-red-950 border border-red-500 text-red-200 text-xs px-3 py-1 rounded-full shadow-lg flex items-center gap-1.5 animate-bounce">
+          <AlertTriangle size={14} className="text-amber-400 shrink-0" />
           <span>
-            <strong>Cảnh báo:</strong> Đánh hết bài bằng 2 sẽ bị xử thua và phạt điểm về 2 cuối!
+            <strong>Cảnh báo:</strong> Đánh hết bằng 2 sẽ bị xử phạt về 2 cuối!
           </span>
         </div>
       )}
 
       {validationMessage && selectedCards.length > 0 && (
-        <div className="bg-amber-950/80 border border-amber-500/40 text-amber-200 text-xs px-3 py-1 rounded-full flex items-center gap-1.5">
-          <AlertTriangle size={14} className="text-amber-400 shrink-0" />
+        <div className="bg-black/80 border border-amber-500/50 text-amber-300 text-xs px-3 py-0.5 rounded-full flex items-center gap-1.5">
+          <AlertTriangle size={13} className="text-amber-400 shrink-0" />
           <span>{validationMessage}</span>
         </div>
       )}
 
-      {/* Buttons */}
-      <div className="flex items-center justify-center gap-2 flex-wrap w-full">
-        {/* Sort Button */}
+      {/* Buttons (Style matching Image 2 with "XẾP BÀI" red pill) */}
+      <div className="flex items-center justify-center gap-2.5 flex-wrap w-full">
+        {/* Pass Button */}
         <button
-          onClick={onSortToggle}
-          className="btn-secondary text-xs md:text-sm py-2 px-3"
-          title="Đổi kiểu xếp bài"
+          onClick={onPass}
+          disabled={!isMyTurn || hasPassed || !currentCombo}
+          className="btn-game-red text-xs md:text-sm py-2 px-5"
         >
-          <ArrowUpDown size={16} />
-          Xếp bài
+          <SkipForward size={16} />
+          BỎ LƯỢT
         </button>
 
         {/* Suggest Button */}
         <button
           onClick={onSuggest}
           disabled={!isMyTurn || hasPassed}
-          className="btn-secondary text-xs md:text-sm py-2 px-3 text-amber-300"
-          title="Gợi ý nước đánh hợp lệ"
+          className="btn-game-red text-xs md:text-sm py-2 px-5 opacity-90"
         >
           <Wand2 size={16} />
-          Gợi ý
-        </button>
-
-        {/* Clear Selection */}
-        {selectedCardIds.length > 0 && (
-          <button
-            onClick={onClearSelection}
-            className="btn-secondary text-xs md:text-sm py-2 px-2.5 text-slate-400 hover:text-white"
-            title="Bỏ chọn tất cả"
-          >
-            <XCircle size={16} />
-          </button>
-        )}
-
-        {/* Pass Button */}
-        <button
-          onClick={onPass}
-          disabled={!isMyTurn || hasPassed || !currentCombo}
-          className="btn-danger text-xs md:text-sm py-2 px-4"
-        >
-          <SkipForward size={16} />
-          Bỏ lượt
+          GỢI Ý
         </button>
 
         {/* Play Button */}
         <button
           onClick={onPlay}
           disabled={!canPlay}
-          className="btn-gold text-xs md:text-base py-2.5 px-6"
+          className="btn-game-gold text-xs md:text-sm py-2.5 px-7 scale-105"
         >
-          <Play size={18} />
-          Đánh bài
+          <Play size={17} fill="#3e2723" />
+          ĐÁNH
         </button>
+
+        {/* XẾP BÀI Button (Exact match from Image 2!) */}
+        <button
+          onClick={onSortToggle}
+          className="btn-game-red text-xs md:text-sm py-2 px-5 font-black"
+        >
+          <Shuffle size={15} />
+          XẾP BÀI
+        </button>
+
+        {/* Clear selection */}
+        {selectedCardIds.length > 0 && (
+          <button
+            onClick={onClearSelection}
+            className="p-2 rounded-full bg-black/60 text-slate-400 hover:text-white border border-slate-700"
+            title="Bỏ chọn"
+          >
+            <XCircle size={18} />
+          </button>
+        )}
       </div>
     </div>
   );
