@@ -71,16 +71,20 @@ const SocketContext = createContext<SocketContextType | null>(null);
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { token, user } = useAuth();
   const [socket, setSocket] = useState<Socket | null>(null);
+  const socketRef = useRef<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [roomState, setRoomState] = useState<RoomClientView | null>(null);
   const prevTurnRef = useRef<number | null>(null);
   const prevPhaseRef = useRef<string | null>(null);
   const currentRoomCodeRef = useRef<string | null>(null);
+  const currentRoomPasswordRef = useRef<string | undefined>(undefined);
+  const pendingJoinCallbacksRef = useRef<Array<(res: any) => void>>([]);
 
   useEffect(() => {
     if (!token) {
-      if (socket) {
-        socket.disconnect();
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
         setSocket(null);
         setIsConnected(false);
       }
@@ -91,12 +95,23 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       auth: { token },
       transports: ['websocket', 'polling'],
     });
+    socketRef.current = s;
+    setSocket(s);
 
     s.on('connect', () => {
       setIsConnected(true);
-      // Auto-rejoin room if code was set
+      // Auto-rejoin room if code was set or pending
       if (currentRoomCodeRef.current) {
-        s.emit('join_room', { roomCode: currentRoomCodeRef.current });
+        const code = currentRoomCodeRef.current;
+        const password = currentRoomPasswordRef.current;
+        s.emit('join_room', { roomCode: code, password }, (res: any) => {
+          if (res && res.success) {
+            setRoomState(res.room);
+          }
+          const cbs = [...pendingJoinCallbacksRef.current];
+          pendingJoinCallbacksRef.current = [];
+          cbs.forEach(cb => cb(res));
+        });
       }
     });
 
@@ -138,38 +153,47 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       window.location.href = '/';
     });
 
-    setSocket(s);
-
     return () => {
       s.disconnect();
+      socketRef.current = null;
     };
   }, [token]);
 
   const joinRoom = (roomCode: string, password?: string): Promise<{ success: boolean; error?: string; needPassword?: boolean }> => {
+    currentRoomCodeRef.current = roomCode;
+    currentRoomPasswordRef.current = password;
+
     return new Promise((resolve) => {
-      if (!socket) {
-        resolve({ success: false, error: 'Chưa kết nối tới máy chủ' });
-        return;
+      const activeSocket = socketRef.current;
+
+      const doEmit = (s: Socket) => {
+        s.emit('join_room', { roomCode, password }, (res: any) => {
+          if (res && res.success) {
+            setRoomState(res.room);
+            resolve({ success: true });
+          } else {
+            resolve(res || { success: false, error: 'Không thể vào phòng' });
+          }
+        });
+      };
+
+      if (activeSocket && activeSocket.connected) {
+        doEmit(activeSocket);
+      } else {
+        // Socket not connected yet - queue callback until 'connect' fires
+        pendingJoinCallbacksRef.current.push(resolve);
       }
-      currentRoomCodeRef.current = roomCode;
-      socket.emit('join_room', { roomCode, password }, (res: any) => {
-        if (res && res.success) {
-          setRoomState(res.room);
-          resolve({ success: true });
-        } else {
-          resolve(res || { success: false, error: 'Không thể vào phòng' });
-        }
-      });
     });
   };
 
   const takeSeat = (seatIndex: number): Promise<{ success: boolean; error?: string }> => {
     return new Promise((resolve) => {
-      if (!socket || !roomState) {
+      const s = socketRef.current || socket;
+      if (!s || !roomState) {
         resolve({ success: false, error: 'Chưa vào phòng' });
         return;
       }
-      socket.emit('take_seat', { roomCode: roomState.code, seatIndex }, (res: any) => {
+      s.emit('take_seat', { roomCode: roomState.code, seatIndex }, (res: any) => {
         resolve(res);
       });
     });
@@ -177,11 +201,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const leaveSeat = (): Promise<{ success: boolean; error?: string }> => {
     return new Promise((resolve) => {
-      if (!socket || !roomState) {
+      const s = socketRef.current || socket;
+      if (!s || !roomState) {
         resolve({ success: false, error: 'Chưa vào phòng' });
         return;
       }
-      socket.emit('leave_seat', { roomCode: roomState.code }, (res: any) => {
+      s.emit('leave_seat', { roomCode: roomState.code }, (res: any) => {
         resolve(res);
       });
     });
@@ -189,11 +214,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const toggleReady = (): Promise<{ success: boolean; error?: string }> => {
     return new Promise((resolve) => {
-      if (!socket || !roomState) {
+      const s = socketRef.current || socket;
+      if (!s || !roomState) {
         resolve({ success: false, error: 'Chưa vào phòng' });
         return;
       }
-      socket.emit('toggle_ready', { roomCode: roomState.code }, (res: any) => {
+      s.emit('toggle_ready', { roomCode: roomState.code }, (res: any) => {
         resolve(res);
       });
     });
@@ -201,11 +227,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const startGame = (): Promise<{ success: boolean; error?: string }> => {
     return new Promise((resolve) => {
-      if (!socket || !roomState) {
+      const s = socketRef.current || socket;
+      if (!s || !roomState) {
         resolve({ success: false, error: 'Chưa vào phòng' });
         return;
       }
-      socket.emit('start_game', { roomCode: roomState.code }, (res: any) => {
+      s.emit('start_game', { roomCode: roomState.code }, (res: any) => {
         resolve(res);
       });
     });
@@ -213,11 +240,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const playCards = (cardIds: string[]): Promise<{ success: boolean; error?: string }> => {
     return new Promise((resolve) => {
-      if (!socket || !roomState) {
+      const s = socketRef.current || socket;
+      if (!s || !roomState) {
         resolve({ success: false, error: 'Chưa vào phòng' });
         return;
       }
-      socket.emit(
+      s.emit(
         'play_cards',
         { roomCode: roomState.code, cardIds, expectedStateVersion: roomState.gameState?.stateVersion },
         (res: any) => {
@@ -232,11 +260,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const passTurn = (): Promise<{ success: boolean; error?: string }> => {
     return new Promise((resolve) => {
-      if (!socket || !roomState) {
+      const s = socketRef.current || socket;
+      if (!s || !roomState) {
         resolve({ success: false, error: 'Chưa vào phòng' });
         return;
       }
-      socket.emit(
+      s.emit(
         'pass_turn',
         { roomCode: roomState.code, expectedStateVersion: roomState.gameState?.stateVersion },
         (res: any) => {
@@ -248,11 +277,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const nextGame = (): Promise<{ success: boolean; error?: string }> => {
     return new Promise((resolve) => {
-      if (!socket || !roomState) {
+      const s = socketRef.current || socket;
+      if (!s || !roomState) {
         resolve({ success: false, error: 'Chưa vào phòng' });
         return;
       }
-      socket.emit('next_game', { roomCode: roomState.code }, (res: any) => {
+      s.emit('next_game', { roomCode: roomState.code }, (res: any) => {
         resolve(res);
       });
     });
@@ -260,11 +290,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const kickPlayer = (targetUserId: string): Promise<{ success: boolean; error?: string }> => {
     return new Promise((resolve) => {
-      if (!socket || !roomState) {
+      const s = socketRef.current || socket;
+      if (!s || !roomState) {
         resolve({ success: false, error: 'Chưa vào phòng' });
         return;
       }
-      socket.emit('kick_player', { roomCode: roomState.code, targetUserId }, (res: any) => {
+      s.emit('kick_player', { roomCode: roomState.code, targetUserId }, (res: any) => {
         resolve(res);
       });
     });

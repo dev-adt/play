@@ -7,7 +7,7 @@ import { GameRoomPage } from './pages/GameRoomPage';
 import { AuthModal } from './components/AuthModal';
 
 export const App: React.FC = () => {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, guestLogin } = useAuth();
   const { joinRoom, roomState } = useSocket();
   const [currentRoomCode, setCurrentRoomCode] = useState<string | null>(null);
   const [roomPasswordPrompt, setRoomPasswordPrompt] = useState<string | null>(null);
@@ -25,24 +25,36 @@ export const App: React.FC = () => {
     }
   }, []);
 
-  // When roomCode and user exist, join the room
+  // When accessing via direct link, auto-create guest session if not logged in
   useEffect(() => {
     if (!currentRoomCode) return;
-
     if (!user && !isLoading) {
-      // Must login/register first, then automatically return to room!
-      setShowAuthModal(true);
-      return;
+      guestLogin();
     }
+  }, [currentRoomCode, user, isLoading, guestLogin]);
 
-    if (user) {
-      joinRoom(currentRoomCode).then(res => {
-        if (!res.success && res.needPassword) {
+  // When roomCode and user exist, join the room
+  useEffect(() => {
+    if (!currentRoomCode || !user) return;
+
+    let isMounted = true;
+    joinRoom(currentRoomCode).then(res => {
+      if (!isMounted) return;
+      if (!res.success) {
+        if (res.needPassword) {
           setRoomPasswordPrompt(currentRoomCode);
+        } else {
+          alert(res.error || 'Không thể vào phòng này (phòng không tồn tại hoặc đã kết thúc)');
+          window.history.pushState({}, '', '/');
+          setCurrentRoomCode(null);
         }
-      });
-    }
-  }, [currentRoomCode, user, isLoading]);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentRoomCode, user]);
 
   const handleNavigateToRoom = (code: string) => {
     window.history.pushState({}, '', `/room/${code}`);

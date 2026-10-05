@@ -54,7 +54,6 @@ export const HandView: React.FC<HandViewProps> = ({
                 card={card}
                 isSelected={isSelected}
                 size="md"
-                onClick={() => onToggleSelect(card.id)}
               />
             </div>
           );
