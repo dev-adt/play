@@ -9,6 +9,7 @@ export interface AuthTokenPayload {
   userId: string;
   username: string;
   displayName: string;
+  isAdmin?: boolean;
 }
 
 export interface AuthenticatedRequest extends Request {

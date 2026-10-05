@@ -70,20 +70,27 @@ export const TableCenterView: React.FC<TableCenterViewProps> = ({
               </div>
             )}
 
-            {/* Fanned / Overlapping Cards on Table */}
-            <div className="flex items-center justify-center -space-x-4 md:-space-x-5 px-2 py-1">
-              {currentCombo.cards.map((card, idx) => (
-                <div
-                  key={card.id}
-                  style={{
-                    zIndex: idx,
-                    transform: `rotate(${(idx - (currentCombo.cards.length - 1) / 2) * 3}deg)`,
-                  }}
-                  className="transition-transform"
-                >
-                  <CardView card={card} size="md" />
-                </div>
-              ))}
+            {/* Fanned / Overlapping Cards on Table with Smooth Flying Animation */}
+            <div
+              key={currentCombo.cards.map(c => c.id).join('-')}
+              className="flex items-center justify-center -space-x-4 md:-space-x-5 px-2 py-1"
+            >
+              {currentCombo.cards.map((card, idx) => {
+                const targetRot = (idx - (currentCombo.cards.length - 1) / 2) * 3.5;
+                return (
+                  <div
+                    key={card.id}
+                    style={{
+                      zIndex: idx,
+                      animationDelay: `${idx * 0.045}s`,
+                      ['--target-rot' as any]: `${targetRot}deg`,
+                    }}
+                    className="animate-card-fly-up"
+                  >
+                    <CardView card={card} size="md" />
+                  </div>
+                );
+              })}
             </div>
 
             {currentComboPlayerName && (

@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f2b1d" />
+      <stop offset="50%" stop-color="#06180f" />
+      <stop offset="100%" stop-color="#020905" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fffbeb" />
+      <stop offset="25%" stop-color="#fde047" />
+      <stop offset="60%" stop-color="#eab308" />
+      <stop offset="100%" stop-color="#ca8a04" />
+    </linearGradient>
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a" />
+      <stop offset="100%" stop-color="#854d0e" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="12" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background Shield/Squircle -->
+  <rect x="24" y="24" width="464" height="464" rx="112" fill="url(#bgGrad)" stroke="url(#borderGrad)" stroke-width="16" />
+
+  <!-- Inner Subtle Ring -->
+  <rect x="44" y="44" width="424" height="424" rx="94" fill="none" stroke="#eab308" stroke-width="2" stroke-opacity="0.3" stroke-dasharray="8 6" />
+
+  <!-- Outer Glow for Spade -->
+  <path d="M 256 90 C 242 150 160 230 140 286 C 120 340 162 384 216 384 C 238 384 256 372 256 372 C 256 372 274 384 296 384 C 350 384 392 340 372 286 C 352 230 270 150 256 90 Z"
+        fill="#eab308" opacity="0.25" filter="url(#glow)" />
+
+  <!-- Golden Spade Main Body -->
+  <path d="M 256 96 C 244 154 164 232 144 286 C 125 338 165 380 216 380 C 238 380 256 368 256 368 C 256 368 274 380 296 380 C 347 380 387 338 368 286 C 348 232 268 154 256 96 Z"
+        fill="url(#goldGrad)" stroke="#78350f" stroke-width="3" />
+
+  <!-- Spade Stem / Stand -->
+  <path d="M 244 360 L 232 424 C 220 428 206 430 196 432 L 316 432 C 306 430 292 428 280 424 L 268 360 Z"
+        fill="url(#goldGrad)" stroke="#78350f" stroke-width="2" />
+
+  <!-- Inner Crown / Star highlight -->
+  <polygon points="256,150 262,168 280,168 266,178 271,196 256,184 241,196 246,178 232,168 250,168" fill="#ffffff" opacity="0.9" />
+</svg>

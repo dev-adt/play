@@ -43,12 +43,73 @@ export const ResultModal: React.FC<ResultModalProps> = ({
   useEffect(() => {
     const isPlayerInGame = players.some(p => p.id === myUserId);
     if (isWinner) {
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 },
-      });
       sounds.playWin();
+
+      // Launch grand celebratory fireworks display
+      const duration = 4000;
+      const animationEnd = Date.now() + duration;
+
+      // Opening salvo burst
+      confetti({
+        particleCount: 90,
+        spread: 100,
+        origin: { y: 0.6 },
+        colors: ['#ffd700', '#f59e0b', '#ef4444', '#10b981', '#38bdf8', '#ffffff'],
+      });
+
+      const interval: any = setInterval(() => {
+        const timeLeft = animationEnd - Date.now();
+        if (timeLeft <= 0) {
+          clearInterval(interval);
+          return;
+        }
+
+        // Rocket burst left side
+        confetti({
+          startVelocity: 32,
+          spread: 360,
+          ticks: 70,
+          origin: {
+            x: Math.random() * 0.35 + 0.1,
+            y: Math.random() * 0.35 + 0.1,
+          },
+          colors: ['#fbbf24', '#f59e0b', '#ef4444', '#10b981', '#60a5fa', '#f472b6', '#ffffff'],
+          shapes: ['circle', 'star'],
+          scalar: 1.15,
+          particleCount: 40,
+        });
+
+        // Rocket burst right side
+        confetti({
+          startVelocity: 32,
+          spread: 360,
+          ticks: 70,
+          origin: {
+            x: Math.random() * 0.35 + 0.55,
+            y: Math.random() * 0.35 + 0.1,
+          },
+          colors: ['#ffd700', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#ffffff'],
+          shapes: ['circle', 'star'],
+          scalar: 1.15,
+          particleCount: 40,
+        });
+
+        // High golden star fountain burst
+        if (Math.random() < 0.45) {
+          confetti({
+            particleCount: 35,
+            angle: 90,
+            spread: 120,
+            startVelocity: 42,
+            origin: { x: 0.5, y: 0.75 },
+            colors: ['#ffd700', '#fef08a', '#ffffff'],
+            shapes: ['star'],
+            scalar: 1.3,
+          });
+        }
+      }, 320);
+
+      return () => clearInterval(interval);
     } else if (isPlayerInGame) {
       sounds.playLose();
     } else {

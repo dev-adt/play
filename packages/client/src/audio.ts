@@ -94,51 +94,77 @@ class SoundManager {
     });
   }
 
-  // 2. PLAY CARD SOUND (Đánh bài: tiếng cạch/quật lá bài xuống mặt bàn đanh chắc)
+  // 2. PLAY CARD SOUND (Đánh bài: tiếng xoẹt xoẹt lướt bài ma sát giấy và quật đanh chắc)
   public playCard() {
     if (this.isMuted) return;
     this.initCtx();
     if (!this.ctx) return;
 
     const now = this.ctx.currentTime;
-    const pitchJitter = (Math.random() - 0.5) * 40;
+    const jitter = (Math.random() - 0.5) * 60;
 
-    // Tone thud (body contact)
+    // Grain 1: First friction swoosh ("xoẹt 1")
+    if (this.noiseBuffer) {
+      const noise1 = this.ctx.createBufferSource();
+      noise1.buffer = this.noiseBuffer;
+
+      const filter1 = this.ctx.createBiquadFilter();
+      filter1.type = 'bandpass';
+      filter1.frequency.setValueAtTime(3200 + jitter * 5, now);
+      filter1.frequency.exponentialRampToValueAtTime(1100, now + 0.06);
+      filter1.Q.setValueAtTime(3.0, now);
+
+      const gain1 = this.ctx.createGain();
+      gain1.gain.setValueAtTime(0.01, now);
+      gain1.gain.linearRampToValueAtTime(0.28, now + 0.015);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.065);
+
+      noise1.connect(filter1);
+      filter1.connect(gain1);
+      gain1.connect(this.ctx.destination);
+
+      noise1.start(now);
+      noise1.stop(now + 0.07);
+
+      // Grain 2: Second trailing friction swoosh ("xoẹt 2" - 35ms later)
+      const t2 = now + 0.035;
+      const noise2 = this.ctx.createBufferSource();
+      noise2.buffer = this.noiseBuffer;
+
+      const filter2 = this.ctx.createBiquadFilter();
+      filter2.type = 'bandpass';
+      filter2.frequency.setValueAtTime(2400 + jitter * 4, t2);
+      filter2.frequency.exponentialRampToValueAtTime(800, t2 + 0.07);
+      filter2.Q.setValueAtTime(2.2, t2);
+
+      const gain2 = this.ctx.createGain();
+      gain2.gain.setValueAtTime(0.01, t2);
+      gain2.gain.linearRampToValueAtTime(0.32, t2 + 0.015);
+      gain2.gain.exponentialRampToValueAtTime(0.001, t2 + 0.075);
+
+      noise2.connect(filter2);
+      filter2.connect(gain2);
+      gain2.connect(this.ctx.destination);
+
+      noise2.start(t2);
+      noise2.stop(t2 + 0.08);
+    }
+
+    // Crisp card slap impact ("tách")
+    const tSlap = now + 0.035;
     const osc = this.ctx.createOscillator();
     const oscGain = this.ctx.createGain();
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(340 + pitchJitter, now);
-    osc.frequency.exponentialRampToValueAtTime(70, now + 0.065);
+    osc.frequency.setValueAtTime(420 + jitter, tSlap);
+    osc.frequency.exponentialRampToValueAtTime(75, tSlap + 0.055);
 
-    oscGain.gain.setValueAtTime(0.28, now);
-    oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+    oscGain.gain.setValueAtTime(0.3, tSlap);
+    oscGain.gain.exponentialRampToValueAtTime(0.001, tSlap + 0.06);
 
     osc.connect(oscGain);
     oscGain.connect(this.ctx.destination);
-    osc.start(now);
-    osc.stop(now + 0.075);
-
-    // Filtered noise snap (crisp paper snap)
-    if (this.noiseBuffer) {
-      const noise = this.ctx.createBufferSource();
-      noise.buffer = this.noiseBuffer;
-
-      const filter = this.ctx.createBiquadFilter();
-      filter.type = 'bandpass';
-      filter.frequency.setValueAtTime(1600 + pitchJitter * 5, now);
-      filter.Q.setValueAtTime(2.5, now);
-
-      const noiseGain = this.ctx.createGain();
-      noiseGain.gain.setValueAtTime(0.22, now);
-      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
-
-      noise.connect(filter);
-      filter.connect(noiseGain);
-      noiseGain.connect(this.ctx.destination);
-
-      noise.start(now);
-      noise.stop(now + 0.05);
-    }
+    osc.start(tSlap);
+    osc.stop(tSlap + 0.065);
   }
 
   // 3. WIN FANFARE (Thắng ván: nhạc chiến thắng rộn rã, tiếng chuông vàng may mắn)

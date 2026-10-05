@@ -1,11 +1,17 @@
 import { config } from './config.js';
 import { db } from './db/database.js';
+import { hashPassword } from './auth/auth.js';
 import { createServer } from './server.js';
 
 async function bootstrap() {
   try {
     console.log('Initializing database...');
     await db.init();
+
+    // Ensure default admin user exists
+    const adminPass = process.env.ADMIN_PASSWORD || 'admin123';
+    const adminHash = await hashPassword(adminPass);
+    await db.ensureAdminUser(adminHash);
 
     const { server } = createServer();
 

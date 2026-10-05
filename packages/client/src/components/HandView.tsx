@@ -6,12 +6,14 @@ interface HandViewProps {
   hand: Card[];
   selectedCardIds: string[];
   onToggleSelect: (cardId: string) => void;
+  isThrowing?: boolean;
 }
 
 export const HandView: React.FC<HandViewProps> = ({
   hand,
   selectedCardIds,
   onToggleSelect,
+  isThrowing = false,
 }) => {
   const cardCount = hand.length;
 
@@ -39,18 +41,23 @@ export const HandView: React.FC<HandViewProps> = ({
       >
         {hand.map((card, idx) => {
           const isSelected = selectedCardIds.includes(card.id);
+          const isBeingThrown = isThrowing && isSelected;
 
           return (
             <div
               key={card.id}
               style={{
                 marginLeft: idx === 0 ? '0px' : `${overlapPx}px`,
-                zIndex: idx,
-                transform: isSelected ? `translateY(${raiseY}px)` : undefined,
+                zIndex: isBeingThrown ? 100 + idx : idx,
+                transform: !isBeingThrown && isSelected ? `translateY(${raiseY}px)` : undefined,
                 transition: 'transform 0.16s cubic-bezier(0.2, 0.8, 0.4, 1)',
               }}
               className={`relative shrink-0 cursor-pointer ${
-                !isSelected ? 'hover:-translate-y-2' : ''
+                isBeingThrown
+                  ? 'animate-card-throw'
+                  : !isSelected
+                  ? 'hover:-translate-y-2'
+                  : ''
               }`}
               onClick={() => onToggleSelect(card.id)}
             >

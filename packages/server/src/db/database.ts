@@ -277,6 +277,176 @@ class DatabaseAdapter {
     return true;
   }
 
+  async ensureAdminUser(passwordHash: string): Promise<UserRow> {
+    const existing = await this.getUserByUsername('admin');
+    if (existing) {
+      return existing;
+    }
+    const admin = await this.createUser({
+      id: 'u_admin_system',
+      username: 'admin',
+      password_hash: passwordHash,
+      display_name: 'Quản Trị Viên (Admin)',
+    });
+    console.log('Default admin user successfully initialized (username: admin)');
+    return admin;
+  }
+
+  async getAllUsersWithStats(): Promise<any[]> {
+    if (this.dbType === 'mysql' && this.mysqlPool) {
+      const [rows] = await this.mysqlPool.query<any[]>(`
+        SELECT u.id, u.username, u.display_name, u.created_at,
+               COALESCE(sb.games_played, 0) as basic_games,
+               COALESCE(sb.wins, 0) as basic_wins,
+               COALESCE(sb.net_score, 0) as basic_net_score,
+               COALESCE(sf.games_played, 0) as fund_games,
+               COALESCE(sf.wins, 0) as fund_wins,
+               COALESCE(sf.total_negative, 0) as fund_negative
+        FROM users u
+        LEFT JOIN player_mode_stats sb ON u.id = sb.user_id AND sb.mode = 'basic'
+        LEFT JOIN player_mode_stats sf ON u.id = sf.user_id AND sf.mode = 'fund'
+        ORDER BY u.created_at DESC
+      `);
+      return rows.map((r: any) => {
+        const isGuest = r.username.startsWith('guest_');
+        const isAdmin = r.username.toLowerCase() === 'admin';
+        const basicGames = Number(r.basic_games) || 0;
+        const basicWins = Number(r.basic_wins) || 0;
+        const basicWinRate = basicGames > 0 ? Math.round((basicWins / basicGames) * 100) : 0;
+        const fundGames = Number(r.fund_games) || 0;
+        const fundWins = Number(r.fund_wins) || 0;
+        const fundWinRate = fundGames > 0 ? Math.round((fundWins / fundGames) * 100) : 0;
+        const totalGames = basicGames + fundGames;
+        const totalWins = basicWins + fundWins;
+        const overallWinRate = totalGames > 0 ? Math.round((totalWins / totalGames) * 100) : 0;
+
+        return {
+          id: r.id,
+          username: r.username,
+          displayName: r.display_name,
+          createdAt: r.created_at,
+          isGuest,
+          isAdmin,
+          basic: {
+            gamesPlayed: basicGames,
+            wins: basicWins,
+            winRate: basicWinRate,
+            netScore: Number(r.basic_net_score) || 0,
+          },
+          fund: {
+            gamesPlayed: fundGames,
+            wins: fundWins,
+            winRate: fundWinRate,
+            totalNegative: Number(r.fund_negative) || 0,
+          },
+          totalGames,
+          totalWins,
+          overallWinRate,
+        };
+      });
+    }
+
+    if (this.dbType === 'pg' && this.pgPool) {
+      const res = await this.pgPool.query(`
+        SELECT u.id, u.username, u.display_name, u.created_at,
+               COALESCE(sb.games_played, 0) as basic_games,
+               COALESCE(sb.wins, 0) as basic_wins,
+               COALESCE(sb.net_score, 0) as basic_net_score,
+               COALESCE(sf.games_played, 0) as fund_games,
+               COALESCE(sf.wins, 0) as fund_wins,
+               COALESCE(sf.total_negative, 0) as fund_negative
+        FROM users u
+        LEFT JOIN player_mode_stats sb ON u.id = sb.user_id AND sb.mode = 'basic'
+        LEFT JOIN player_mode_stats sf ON u.id = sf.user_id AND sf.mode = 'fund'
+        ORDER BY u.created_at DESC
+      `);
+      return res.rows.map((r: any) => {
+        const isGuest = r.username.startsWith('guest_');
+        const isAdmin = r.username.toLowerCase() === 'admin';
+        const basicGames = Number(r.basic_games) || 0;
+        const basicWins = Number(r.basic_wins) || 0;
+        const basicWinRate = basicGames > 0 ? Math.round((basicWins / basicGames) * 100) : 0;
+        const fundGames = Number(r.fund_games) || 0;
+        const fundWins = Number(r.fund_wins) || 0;
+        const fundWinRate = fundGames > 0 ? Math.round((fundWins / fundGames) * 100) : 0;
+        const totalGames = basicGames + fundGames;
+        const totalWins = basicWins + fundWins;
+        const overallWinRate = totalGames > 0 ? Math.round((totalWins / totalGames) * 100) : 0;
+
+        return {
+          id: r.id,
+          username: r.username,
+          displayName: r.display_name,
+          createdAt: r.created_at,
+          isGuest,
+          isAdmin,
+          basic: {
+            gamesPlayed: basicGames,
+            wins: basicWins,
+            winRate: basicWinRate,
+            netScore: Number(r.basic_net_score) || 0,
+          },
+          fund: {
+            gamesPlayed: fundGames,
+            wins: fundWins,
+            winRate: fundWinRate,
+            totalNegative: Number(r.fund_negative) || 0,
+          },
+          totalGames,
+          totalWins,
+          overallWinRate,
+        };
+      });
+    }
+
+    const userList = Array.from(this.localData.users.values()).sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+
+    return userList.map(u => {
+      const isGuest = u.username.startsWith('guest_');
+      const isAdmin = u.username.toLowerCase() === 'admin';
+      const basicStat = this.localData.playerStats.get(`${u.id}_basic`);
+      const fundStat = this.localData.playerStats.get(`${u.id}_fund`);
+
+      const basicGames = basicStat?.games_played || 0;
+      const basicWins = basicStat?.wins || 0;
+      const basicWinRate = basicGames > 0 ? Math.round((basicWins / basicGames) * 100) : 0;
+
+      const fundGames = fundStat?.games_played || 0;
+      const fundWins = fundStat?.wins || 0;
+      const fundWinRate = fundGames > 0 ? Math.round((fundWins / fundGames) * 100) : 0;
+
+      const totalGames = basicGames + fundGames;
+      const totalWins = basicWins + fundWins;
+      const overallWinRate = totalGames > 0 ? Math.round((totalWins / totalGames) * 100) : 0;
+
+      return {
+        id: u.id,
+        username: u.username,
+        displayName: u.display_name,
+        createdAt: u.created_at,
+        isGuest,
+        isAdmin,
+        basic: {
+          gamesPlayed: basicGames,
+          wins: basicWins,
+          winRate: basicWinRate,
+          netScore: basicStat?.net_score || 0,
+        },
+        fund: {
+          gamesPlayed: fundGames,
+          wins: fundWins,
+          winRate: fundWinRate,
+          totalNegative: fundStat?.total_negative || 0,
+        },
+        totalGames,
+        totalWins,
+        overallWinRate,
+      };
+    });
+  }
+
   // --- STATS METHODS ---
   async getPlayerStats(userId: string): Promise<{ basic: PlayerStatsRow; fund: PlayerStatsRow }> {
     const defaultStats = (mode: string): PlayerStatsRow => ({

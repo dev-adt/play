@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { sounds } from '../audio';
-import { BookOpen, History, Volume2, VolumeX, LogOut, User, Flame } from 'lucide-react';
+import { BookOpen, History, Volume2, VolumeX, LogOut, User, Flame, ShieldCheck } from 'lucide-react';
 import { RulesModal } from './RulesModal';
 import { HistoryModal } from './HistoryModal';
+import { AdminModal } from './AdminModal';
 
 interface NavbarProps {
   roomName?: string;
@@ -15,6 +16,7 @@ export const Navbar: React.FC<NavbarProps> = ({ roomName, roomCode, onLeaveRoom 
   const { user, stats, logout } = useAuth();
   const [showRules, setShowRules] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
   const [isMuted, setIsMuted] = useState(sounds.isMuted);
 
   const handleToggleSound = () => {
@@ -89,6 +91,18 @@ export const Navbar: React.FC<NavbarProps> = ({ roomName, roomCode, onLeaveRoom 
             </button>
           )}
 
+          {/* Admin Dashboard button */}
+          {user?.isAdmin && (
+            <button
+              onClick={() => setShowAdmin(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-amber-300 bg-amber-500/15 border border-amber-500/40 hover:bg-amber-500/25 transition shadow-sm"
+              title="Bảng điều khiển Quản trị viên (Admin)"
+            >
+              <ShieldCheck size={16} className="text-amber-400 stroke-[2.5]" />
+              <span className="hidden sm:inline">Quản Trị</span>
+            </button>
+          )}
+
           {/* Sound Mute button */}
           <button
             onClick={handleToggleSound}
@@ -113,6 +127,7 @@ export const Navbar: React.FC<NavbarProps> = ({ roomName, roomCode, onLeaveRoom 
 
       {showRules && <RulesModal onClose={() => setShowRules(false)} />}
       {showHistory && <HistoryModal onClose={() => setShowHistory(false)} />}
+      {showAdmin && <AdminModal onClose={() => setShowAdmin(false)} />}
     </>
   );
 };

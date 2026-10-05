@@ -212,3 +212,43 @@ html, body {
   overflow-y: auto;
   box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9);
 }
+
+/* Card Flying Animation onto Table */
+@keyframes cardFlyUpToTable {
+  0% {
+    transform: translateY(140px) scale(0.6) rotate(-8deg);
+    opacity: 0.1;
+    filter: drop-shadow(0 20px 25px rgba(0, 0, 0, 0.9));
+  }
+  65% {
+    transform: translateY(-8px) scale(1.05) rotate(1deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0) scale(1) rotate(var(--target-rot, 0deg));
+    opacity: 1;
+    filter: drop-shadow(0 5px 12px rgba(0, 0, 0, 0.6));
+  }
+}
+
+.animate-card-fly-up {
+  animation: cardFlyUpToTable 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Card Launching Effect from Hand */
+@keyframes cardThrowFromHand {
+  0% {
+    transform: translateY(-24px) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-160px) scale(0.75) rotate(6deg);
+    opacity: 0;
+  }
+}
+
+.animate-card-throw {
+  animation: cardThrowFromHand 0.22s cubic-bezier(0.2, 0.8, 0.4, 1) forwards;
+  pointer-events: none;
+}
+

@@ -40,6 +40,14 @@ export function createServer() {
   app.use(express.json());
   app.use(cookieParser());
 
+  function requireAdmin(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
+    if (!req.user || req.user.username.toLowerCase() !== 'admin') {
+      res.status(403).json({ error: 'Quyền truy cập bị từ chối: Yêu cầu quyền Quản Trị Viên (Admin).' });
+      return;
+    }
+    next();
+  }
+
   // --- AUTH ROUTES ---
   app.post('/api/auth/register', async (req: Request, res: Response) => {
     try {
@@ -69,10 +77,12 @@ export function createServer() {
         display_name: dName,
       });
 
+      const isAdmin = newUser.username.toLowerCase() === 'admin';
       const tokenPayload = {
         userId: newUser.id,
         username: newUser.username,
         displayName: newUser.display_name,
+        isAdmin,
       };
       const token = generateToken(tokenPayload);
 
@@ -117,6 +127,7 @@ export function createServer() {
         userId: newUser.id,
         username: newUser.username,
         displayName: newUser.display_name,
+        isAdmin: false,
       };
       const token = generateToken(tokenPayload);
 
@@ -159,10 +170,12 @@ export function createServer() {
         return;
       }
 
+      const isAdmin = user.username.toLowerCase() === 'admin';
       const tokenPayload = {
         userId: user.id,
         username: user.username,
         displayName: user.display_name,
+        isAdmin,
       };
       const token = generateToken(tokenPayload);
 
@@ -193,11 +206,25 @@ export function createServer() {
 
   app.get('/api/auth/me', authenticate, async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const user = req.user!;
+      const user = {
+        ...req.user!,
+        isAdmin: req.user!.username.toLowerCase() === 'admin',
+      };
       const stats = await db.getPlayerStats(user.userId);
       res.json({ user, stats });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
+    }
+  });
+
+  // --- ADMIN ROUTES ---
+  app.get('/api/admin/users', authenticate, requireAdmin, async (_req: AuthenticatedRequest, res: Response) => {
+    try {
+      const users = await db.getAllUsersWithStats();
+      res.json({ users });
+    } catch (err: any) {
+      console.error('Admin get users error:', err);
+      res.status(500).json({ error: 'Không thể tải danh sách tài khoản' });
     }
   });
 

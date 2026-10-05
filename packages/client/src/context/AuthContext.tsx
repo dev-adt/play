@@ -4,6 +4,7 @@ export interface User {
   userId: string;
   username: string;
   displayName: string;
+  isAdmin?: boolean;
 }
 
 export interface PlayerStats {

@@ -56,6 +56,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
   const [lastReadChatCount, setLastReadChatCount] = useState(0);
   const [chatBubbles, setChatBubbles] = useState<Record<string, { text: string; expiresAt: number }>>({});
   const [isMuted, setIsMuted] = useState(sounds.isMuted);
+  const [isThrowingCards, setIsThrowingCards] = useState(false);
 
   const unreadChatCount = showChat ? 0 : Math.max(0, roomChats.length - lastReadChatCount);
 
@@ -275,11 +276,18 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
     const orderedIds = myHand
       .filter(c => selectedCardIds.includes(c.id))
       .map(c => c.id);
+    setIsThrowingCards(true);
     const res = await playCards(orderedIds.length > 0 ? orderedIds : selectedCardIds);
     if (res.success) {
-      setSelectedCardIds([]);
-    } else if (res.error) {
-      alert(res.error);
+      setTimeout(() => {
+        setSelectedCardIds([]);
+        setIsThrowingCards(false);
+      }, 160);
+    } else {
+      setIsThrowingCards(false);
+      if (res.error) {
+        alert(res.error);
+      }
     }
   };
 
@@ -643,6 +651,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
               hand={myHand}
               selectedCardIds={selectedCardIds}
               onToggleSelect={handleToggleSelect}
+              isThrowing={isThrowingCards}
             />
 
             {/* "XẾP BÀI" Button on Right Side of Cards */}
