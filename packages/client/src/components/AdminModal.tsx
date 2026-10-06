@@ -26,8 +26,30 @@ import {
   Coins,
   Plus,
   Minus,
-  DollarSign
+  DollarSign,
+  MessageSquareHeart,
+  HeartHandshake,
+  Lightbulb,
+  Bug,
+  Gift,
+  Send,
 } from 'lucide-react';
+
+interface FeedbackWishRecord {
+  id: string;
+  user_id: string;
+  type: 'wish' | 'feedback' | 'bug';
+  title?: string;
+  content: string;
+  reward_amount: number;
+  status: 'pending' | 'rewarded' | 'rejected';
+  admin_note?: string;
+  created_at: string;
+  rewarded_at?: string;
+  username?: string;
+  display_name?: string;
+  balance?: number;
+}
 
 interface UserRecord {
   id: string;
@@ -128,6 +150,103 @@ export const AdminModal: React.FC<AdminModalProps> = ({ onClose }) => {
       setAdjustError(err.message || 'Lỗi khi cập nhật số dư');
     } finally {
       setAdjustLoading(false);
+    }
+  };
+
+  // Tab Navigation in Admin Modal
+  const [adminTab, setAdminTab] = useState<'users' | 'wishes'>('users');
+  const [wishes, setWishes] = useState<FeedbackWishRecord[]>([]);
+  const [wishesLoading, setWishesLoading] = useState(false);
+  const [wishFilter, setWishFilter] = useState<'all' | 'pending' | 'rewarded'>('all');
+
+  // Reward Wish State
+  const [rewardingWish, setRewardingWish] = useState<FeedbackWishRecord | null>(null);
+  const [rewardAmountInput, setRewardAmountInput] = useState<string>('5000');
+  const [rewardNoteInput, setRewardNoteInput] = useState<string>('Admin khen lời chúc hay, tặng nóng vốn khởi nghiệp!');
+  const [rewardLoading, setRewardLoading] = useState(false);
+  const [rewardError, setRewardError] = useState<string | null>(null);
+  const [rewardSuccess, setRewardSuccess] = useState<string | null>(null);
+
+  const fetchWishes = async (status?: string) => {
+    setWishesLoading(true);
+    try {
+      const activeToken = token || localStorage.getItem('tienlen_token');
+      const filter = status !== undefined ? status : wishFilter;
+      const res = await fetch(`/api/admin/feedback?status=${filter}`, {
+        headers: {
+          Authorization: `Bearer ${activeToken}`,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setWishes(data.wishes || []);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setWishesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (adminTab === 'wishes') {
+      fetchWishes();
+    }
+  }, [adminTab, wishFilter]);
+
+  const handleRewardWish = async () => {
+    if (!rewardingWish) return;
+    const amount = parseInt(rewardAmountInput.trim(), 10);
+    if (isNaN(amount) || amount <= 0) {
+      setRewardError('Vui lòng nhập số tiền thưởng hợp lệ (> 0$)');
+      return;
+    }
+
+    setRewardLoading(true);
+    setRewardError(null);
+    setRewardSuccess(null);
+
+    try {
+      const activeToken = token || localStorage.getItem('tienlen_token');
+      const res = await fetch(`/api/admin/feedback/${rewardingWish.id}/reward`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${activeToken}`,
+        },
+        body: JSON.stringify({
+          rewardAmount: amount,
+          adminNote: rewardNoteInput.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Không thể duyệt thưởng');
+      }
+
+      setRewardSuccess(`Thành công! Đã thưởng +${amount.toLocaleString()}$ cho ${rewardingWish.display_name}`);
+
+      setWishes(prev =>
+        prev.map(w =>
+          w.id === rewardingWish.id
+            ? { ...w, status: 'rewarded', reward_amount: amount, admin_note: rewardNoteInput.trim() }
+            : w
+        )
+      );
+
+      setUsers(prev =>
+        prev.map(u => (u.id === rewardingWish.user_id ? { ...u, balance: data.newBalance } : u))
+      );
+
+      setTimeout(() => {
+        setRewardingWish(null);
+        setRewardSuccess(null);
+      }, 1000);
+    } catch (err: any) {
+      setRewardError(err.message || 'Lỗi khi duyệt thưởng');
+    } finally {
+      setRewardLoading(false);
     }
   };
 
@@ -335,6 +454,43 @@ export const AdminModal: React.FC<AdminModalProps> = ({ onClose }) => {
             </button>
           </div>
         </div>
+
+        {/* Navigation Tabs (Chuyển đổi giữa Danh sách Người Chơi & Lời Chúc / Góp Ý) */}
+        {!selectedUser && (
+          <div className="flex items-center gap-2 pt-2 border-b border-slate-800">
+            <button
+              onClick={() => setAdminTab('users')}
+              className={`pb-2.5 px-3 font-black text-xs sm:text-sm flex items-center gap-2 border-b-2 transition cursor-pointer ${
+                adminTab === 'users'
+                  ? 'border-amber-400 text-amber-300'
+                  : 'border-transparent text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Users size={16} />
+              <span>Danh Sách Người Chơi ({users.length})</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setAdminTab('wishes');
+                fetchWishes();
+              }}
+              className={`pb-2.5 px-3 font-black text-xs sm:text-sm flex items-center gap-2 border-b-2 transition cursor-pointer ${
+                adminTab === 'wishes'
+                  ? 'border-pink-500 text-pink-300'
+                  : 'border-transparent text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <MessageSquareHeart size={16} />
+              <span>Lời Chúc & Góp Ý ({wishes.length})</span>
+              {wishes.filter(w => w.status === 'pending').length > 0 && (
+                <span className="bg-red-600 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full animate-pulse">
+                  {wishes.filter(w => w.status === 'pending').length} chờ duyệt
+                </span>
+              )}
+            </button>
+          </div>
+        )}
 
         {/* ---------------- VIEW 1: SELECTED USER MATCH HISTORY ---------------- */}
         {selectedUser ? (
@@ -587,6 +743,155 @@ export const AdminModal: React.FC<AdminModalProps> = ({ onClose }) => {
                     </div>
                   );
                 })
+              )}
+            </div>
+          </div>
+        ) : adminTab === 'wishes' ? (
+          /* ---------------- VIEW 3: WISHES & FEEDBACK MANAGEMENT ---------------- */
+          <div className="flex-1 flex flex-col overflow-hidden pt-4">
+            {/* Filter Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setWishFilter('all')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    wishFilter === 'all'
+                      ? 'bg-pink-600 text-white shadow'
+                      : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white'
+                  }`}
+                >
+                  Tất cả ({wishes.length})
+                </button>
+                <button
+                  onClick={() => setWishFilter('pending')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                    wishFilter === 'pending'
+                      ? 'bg-amber-500 text-slate-950 shadow font-black'
+                      : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white'
+                  }`}
+                >
+                  <Clock size={13} />
+                  <span>Chờ duyệt ({wishes.filter(w => w.status === 'pending').length})</span>
+                </button>
+                <button
+                  onClick={() => setWishFilter('rewarded')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                    wishFilter === 'rewarded'
+                      ? 'bg-emerald-600 text-white shadow font-black'
+                      : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white'
+                  }`}
+                >
+                  <CheckCircle2 size={13} />
+                  <span>Đã thưởng ({wishes.filter(w => w.status === 'rewarded').length})</span>
+                </button>
+              </div>
+
+              <button
+                onClick={() => fetchWishes()}
+                disabled={wishesLoading}
+                className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs text-slate-300 font-bold flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <RefreshCw size={14} className={wishesLoading ? 'animate-spin text-pink-400' : ''} />
+                <span>Làm mới</span>
+              </button>
+            </div>
+
+            {/* Wishes Cards Grid/List */}
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+              {wishesLoading ? (
+                <div className="text-center py-12 text-slate-400 text-sm">
+                  Đang tải danh sách lời chúc & góp ý...
+                </div>
+              ) : wishes.length === 0 ? (
+                <div className="text-center py-12 text-slate-400 text-sm bg-slate-900/40 rounded-2xl border border-slate-800 p-8">
+                  Chưa có lời chúc hoặc góp ý nào trong mục này.
+                </div>
+              ) : (
+                wishes.map((w) => (
+                  <div
+                    key={w.id}
+                    className={`p-4 rounded-2xl border transition-all ${
+                      w.status === 'rewarded'
+                        ? 'bg-slate-900/60 border-emerald-500/40'
+                        : 'bg-slate-900/90 border-amber-500/40 shadow-lg'
+                    }`}
+                  >
+                    {/* Top Row: User Info & Meta */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pb-2 mb-2 border-b border-slate-800/80">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`text-[11px] font-black uppercase px-2 py-0.5 rounded-full ${
+                            w.type === 'wish'
+                              ? 'bg-pink-500/20 text-pink-300 border border-pink-500/40'
+                              : w.type === 'feedback'
+                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                              : 'bg-red-500/20 text-red-300 border border-red-500/40'
+                          }`}
+                        >
+                          {w.type === 'wish' ? '💌 Lời chúc' : w.type === 'feedback' ? '💡 Góp ý' : '🐛 Báo lỗi'}
+                        </span>
+
+                        <strong className="text-sm font-bold text-white">
+                          {w.display_name}
+                        </strong>
+                        <span className="text-xs text-slate-400 font-mono">
+                          (@{w.username})
+                        </span>
+                        <span className="text-xs text-yellow-300 font-mono bg-yellow-400/10 px-2 py-0.5 rounded-md border border-yellow-400/20 font-bold">
+                          💰 {(w.balance ?? 1000).toLocaleString()}$
+                        </span>
+                      </div>
+
+                      <div className="text-xs text-slate-400 font-mono flex items-center gap-1">
+                        <Clock size={13} />
+                        {formatDate(w.created_at)}
+                      </div>
+                    </div>
+
+                    {/* Content Box */}
+                    <div className="text-sm text-slate-100 bg-black/40 p-3 rounded-xl border border-slate-800 font-medium italic my-2">
+                      "{w.content}"
+                    </div>
+
+                    {/* Bottom Status & Action */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                      {w.status === 'rewarded' ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="bg-emerald-500/20 border border-emerald-400 text-emerald-300 text-xs font-black px-2.5 py-1 rounded-full flex items-center gap-1">
+                            <Coins size={14} className="fill-emerald-400" />
+                            Đã thưởng: +{w.reward_amount.toLocaleString()}$
+                          </span>
+                          {w.admin_note && (
+                            <span className="text-xs text-emerald-400 italic">
+                              (Lời nhắn: "{w.admin_note}")
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-xs text-amber-300/80 flex items-center gap-1">
+                          <Clock size={14} /> Chưa duyệt thưởng
+                        </div>
+                      )}
+
+                      {/* Reward Button */}
+                      {w.status === 'pending' && (
+                        <button
+                          onClick={() => {
+                            setRewardingWish(w);
+                            setRewardAmountInput('5000');
+                            setRewardNoteInput('Admin khen lời chúc hay, tặng nóng vốn khởi nghiệp!');
+                            setRewardError(null);
+                            setRewardSuccess(null);
+                          }}
+                          className="btn-game-gold py-1.5 px-4 text-xs font-black shadow-lg flex items-center gap-1.5 cursor-pointer active:scale-95 transition"
+                        >
+                          <Gift size={14} fill="#3e2723" />
+                          <span>🎁 Thưởng Tiền Ngay</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))
               )}
             </div>
           </div>
@@ -1002,6 +1307,111 @@ export const AdminModal: React.FC<AdminModalProps> = ({ onClose }) => {
                     className="flex-1 btn-game-gold py-2 rounded-xl text-xs font-black shadow-lg transition cursor-pointer"
                   >
                     {adjustLoading ? 'Đang lưu...' : 'Xác Nhận'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Rewarding Wish Modal (Admin duyệt thưởng cho lời chúc/góp ý) */}
+        {rewardingWish && (
+          <div className="modal-overlay z-60 p-4">
+            <div className="modal-content max-w-md w-full p-5 bg-slate-900 border-2 border-amber-500/60 rounded-2xl shadow-2xl text-slate-100">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-amber-500 to-yellow-300 flex items-center justify-center text-slate-950 font-black">
+                    <Gift size={18} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-amber-300">
+                      Thưởng Tiền Cho Người Chơi
+                    </h3>
+                    <p className="text-[11px] text-slate-400">
+                      {rewardingWish.display_name} (@{rewardingWish.username})
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setRewardingWish(null)}
+                  className="p-1.5 text-slate-400 hover:text-white rounded-lg transition cursor-pointer"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {rewardSuccess && (
+                <div className="bg-emerald-950 border border-emerald-500/60 text-emerald-200 text-xs p-3 rounded-xl mb-3 text-center">
+                  {rewardSuccess}
+                </div>
+              )}
+
+              {rewardError && (
+                <div className="bg-red-950 border border-red-500/60 text-red-200 text-xs p-3 rounded-xl mb-3 text-center">
+                  {rewardError}
+                </div>
+              )}
+
+              {/* Wish content preview */}
+              <div className="bg-black/50 p-2.5 rounded-xl border border-slate-800 text-xs italic text-slate-300 mb-3 line-clamp-3">
+                "{rewardingWish.content}"
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-slate-300 font-bold block mb-1">
+                    Số tiền thưởng ($)
+                  </label>
+                  <input
+                    type="number"
+                    min="100"
+                    step="1000"
+                    value={rewardAmountInput}
+                    onChange={e => setRewardAmountInput(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-yellow-300 font-black focus:outline-none focus:border-amber-400 font-mono"
+                  />
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {[1000, 2000, 5000, 10000, 20000, 50000].map(amt => (
+                      <button
+                        key={amt}
+                        type="button"
+                        onClick={() => setRewardAmountInput(amt.toString())}
+                        className="px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700 cursor-pointer"
+                      >
+                        +{amt.toLocaleString()}$
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs text-slate-300 font-bold block mb-1">
+                    Lời nhắn khen thưởng gửi người chơi (tùy chọn)
+                  </label>
+                  <input
+                    type="text"
+                    value={rewardNoteInput}
+                    onChange={e => setRewardNoteInput(e.target.value)}
+                    placeholder="Nhập lời khen từ Admin..."
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setRewardingWish(null)}
+                    className="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition cursor-pointer"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRewardWish}
+                    disabled={rewardLoading}
+                    className="flex-1 btn-game-gold py-2 rounded-xl text-xs font-black shadow-lg transition cursor-pointer"
+                  >
+                    {rewardLoading ? 'Đang duyệt...' : '🎁 Xác Nhận Thưởng'}
                   </button>
                 </div>
               </div>

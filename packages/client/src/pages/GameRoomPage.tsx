@@ -32,6 +32,7 @@ import { RulesModal } from '../components/RulesModal';
 import { HistoryModal } from '../components/HistoryModal';
 import { RoomChatModal } from '../components/RoomChatModal';
 import { PlayerInfoModal } from '../components/PlayerInfoModal';
+import { DealingDeckAnimation } from '../components/DealingDeckAnimation';
 import { useVoiceChat } from '../context/VoiceChatContext';
 
 interface GameRoomPageProps {
@@ -75,6 +76,34 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
   const [isMuted, setIsMuted] = useState(sounds.isMuted);
   const [isThrowingCards, setIsThrowingCards] = useState(false);
   const [inspectPlayer, setInspectPlayer] = useState<{ id: string; displayName: string; seatIndex?: number } | null>(null);
+
+  // Dealing & Auto-sort states
+  const [isDealing, setIsDealing] = useState(false);
+  const [isSortingHand, setIsSortingHand] = useState(false);
+  const [lastDealtGameId, setLastDealtGameId] = useState<string | null>(null);
+
+  // Trigger dealing animation when new round/game starts
+  useEffect(() => {
+    const currentGameId = roomState?.gameState?.gameId;
+    const isPlaying = roomState?.isGameActive && roomState?.gameState?.phase === 'playing';
+
+    if (isPlaying && currentGameId && currentGameId !== lastDealtGameId) {
+      setLastDealtGameId(currentGameId);
+      setIsDealing(true);
+      setSelectedCardIds([]);
+    }
+  }, [roomState?.isGameActive, roomState?.gameState?.gameId, roomState?.gameState?.phase, lastDealtGameId]);
+
+  const handleDealingComplete = () => {
+    setIsDealing(false);
+    // Auto sort cards once for easy viewing and playing!
+    setSortBySuit(false);
+    setIsSortingHand(true);
+    sounds.playCardSlide();
+    setTimeout(() => {
+      setIsSortingHand(false);
+    }, 450);
+  };
 
   const unreadChatCount = showChat ? 0 : Math.max(0, roomChats.length - lastReadChatCount);
 
@@ -628,6 +657,30 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
             )}
           </div>
 
+          {/* Dealing Deck Animation (Hiệu ứng chia bài từ giữa bàn đến từng người chơi) */}
+          {isDealing && (
+            <DealingDeckAnimation
+              playerPositions={
+                [
+                  bottomPlayer ? 'bottom' : null,
+                  rightPlayer && rightSeatIdx !== -1 ? 'right' : null,
+                  topPlayer && topSeatIdx !== -1 ? 'top' : null,
+                  leftPlayer && leftSeatIdx !== -1 ? 'left' : null,
+                ].filter((p): p is 'bottom' | 'top' | 'left' | 'right' => p !== null).length > 0
+                  ? (
+                      [
+                        bottomPlayer ? 'bottom' : null,
+                        rightPlayer && rightSeatIdx !== -1 ? 'right' : null,
+                        topPlayer && topSeatIdx !== -1 ? 'top' : null,
+                        leftPlayer && leftSeatIdx !== -1 ? 'left' : null,
+                      ].filter((p): p is 'bottom' | 'top' | 'left' | 'right' => p !== null)
+                    )
+                  : ['bottom']
+              }
+              onComplete={handleDealingComplete}
+            />
+          )}
+
           {/* Right Seat (Opponent) */}
           {rightSeatIdx !== -1 && (
             <div className="absolute right-1 sm:right-2 md:right-6 top-1/2 -translate-y-1/2 z-20">
@@ -752,6 +805,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
               selectedCardIds={selectedCardIds}
               onToggleSelect={handleToggleSelect}
               isThrowing={isThrowingCards}
+              isSorting={isSortingHand}
             />
 
             {/* "XẾP BÀI" Button on Right Side of Cards */}

@@ -95,6 +95,10 @@ class SoundManager {
   }
 
   // 2. PLAY CARD SOUND (Đánh bài: tiếng xoẹt xoẹt lướt bài ma sát giấy và quật đanh chắc)
+  public playCardSlide() {
+    this.playCard();
+  }
+
   public playCard() {
     if (this.isMuted) return;
     this.initCtx();

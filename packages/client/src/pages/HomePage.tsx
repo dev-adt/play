@@ -24,7 +24,8 @@ import { RulesModal } from '../components/RulesModal';
 import { HistoryModal } from '../components/HistoryModal';
 import { AdminModal } from '../components/AdminModal';
 import { DailyRewardModal } from '../components/DailyRewardModal';
-import { ShieldCheck } from 'lucide-react';
+import { WishFeedbackModal } from '../components/WishFeedbackModal';
+import { ShieldCheck, MessageSquareHeart } from 'lucide-react';
 
 interface HomePageProps {
   onNavigateToRoom: (roomCode: string) => void;
@@ -40,6 +41,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToRoom }) => {
   const [showHistory, setShowHistory] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [showDailyReward, setShowDailyReward] = useState(false);
+  const [showWishFeedback, setShowWishFeedback] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [quickJoining, setQuickJoining] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -494,21 +496,34 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToRoom }) => {
           </span>
         </div>
 
-        {/* Right: Watch Video Claim + Leaderboard Trophy */}
+        {/* Right: Wish & Feedback Claim Pill (Thay chỗ xem quảng cáo nhận thưởng) + Leaderboard Trophy */}
         <div className="flex items-center gap-2.5">
-          {/* Watch Video Claim Pill */}
+          {/* Wish & Feedback Claim Pill */}
           <div
-            onClick={() => showToast('Nhiệm vụ xem video nhận xu: Sẵn sàng sau 01h 22m')}
-            className="flex items-center bg-black/60 backdrop-blur-md border border-amber-400/50 rounded-full pl-3 pr-1 py-1 gap-2 cursor-pointer shadow-lg hover:border-amber-300 transition"
+            onClick={() => {
+              if (!user) {
+                setShowAuth(true);
+              } else {
+                setShowWishFeedback(true);
+              }
+            }}
+            className="flex items-center bg-gradient-to-r from-pink-950/80 via-black/70 to-amber-950/80 backdrop-blur-md border-2 border-pink-400/60 rounded-full pl-3 pr-1 py-1 gap-2 cursor-pointer shadow-[0_0_15px_rgba(236,72,153,0.35)] hover:border-pink-300 hover:scale-105 active:scale-95 transition-all group"
+            title="Gửi lời chúc / Góp ý nhận tiền thưởng từ Admin"
           >
-            <Coins size={15} className="text-yellow-400 fill-yellow-400" />
-            <span className="text-xs font-bold text-amber-200">01h 22m</span>
+            <div className="flex flex-col text-left leading-none">
+              <span className="text-[11px] font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-200 to-amber-200 tracking-tight">
+                Chúc Hay / Góp Ý
+              </span>
+              <span className="text-[9px] font-bold text-yellow-300 flex items-center gap-0.5">
+                <Coins size={10} className="fill-yellow-400" /> Nhận thưởng
+              </span>
+            </div>
             <div className="relative">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-b from-[#9c27b0] to-[#6a1b9a] border border-[#ce93d8] flex items-center justify-center text-white shadow">
-                <Play size={14} fill="white" />
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-pink-500 via-rose-500 to-amber-400 border border-yellow-200 flex items-center justify-center text-white shadow-md group-hover:rotate-12 transition">
+                <MessageSquareHeart size={16} className="text-white fill-white/20" />
               </div>
-              <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-600 text-white text-[9px] font-black flex items-center justify-center border border-white">
-                7
+              <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-600 text-white text-[9px] font-black flex items-center justify-center border border-white shadow animate-pulse">
+                🎁
               </div>
             </div>
           </div>
@@ -584,6 +599,13 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToRoom }) => {
           onClaimSuccess={(amt) => {
             showToast(`Nhận thành công +${amt.toLocaleString()}$ quà đăng nhập!`);
           }}
+        />
+      )}
+
+      {/* Wish & Feedback Modal */}
+      {showWishFeedback && (
+        <WishFeedbackModal
+          onClose={() => setShowWishFeedback(false)}
         />
       )}
     </div>

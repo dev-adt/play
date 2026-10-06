@@ -117,3 +117,19 @@ CREATE TABLE IF NOT EXISTS player_mode_stats (
   PRIMARY KEY (user_id, mode),
   CONSTRAINT fk_stats_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS feedback_wishes (
+  id VARCHAR(64) PRIMARY KEY,
+  user_id VARCHAR(64) NOT NULL,
+  type VARCHAR(32) NOT NULL DEFAULT 'wish',
+  title VARCHAR(128) DEFAULT NULL,
+  content TEXT NOT NULL,
+  reward_amount INT NOT NULL DEFAULT 0,
+  status VARCHAR(32) NOT NULL DEFAULT 'pending',
+  admin_note TEXT DEFAULT NULL,
+  rewarded_at DATETIME DEFAULT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_feedback_user (user_id),
+  INDEX idx_feedback_status (status),
+  CONSTRAINT fk_feedback_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

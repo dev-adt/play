@@ -368,6 +368,87 @@ export function createServer() {
     }
   });
 
+  // --- WISHES & FEEDBACK ROUTES ---
+  app.post('/api/feedback/submit', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { type, title, content } = req.body;
+      if (!content || typeof content !== 'string' || content.trim().length < 5) {
+        res.status(400).json({ error: 'Nội dung lời chúc hoặc góp ý phải có ít nhất 5 ký tự' });
+        return;
+      }
+      const validTypes = ['wish', 'feedback', 'bug'];
+      const wishType = validTypes.includes(type) ? type : 'wish';
+      const id = `fw_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+      const feedback = await db.createFeedbackWish({
+        id,
+        userId: req.user!.userId,
+        type: wishType,
+        title: title ? String(title).slice(0, 100) : undefined,
+        content: content.trim(),
+      });
+
+      res.status(201).json({
+        success: true,
+        feedback,
+        message: 'Gửi lời chúc/góp ý thành công! Admin sẽ sớm đọc và gửi quà thưởng cho bạn nhé 🎉',
+      });
+    } catch (err: any) {
+      console.error('Submit feedback error:', err);
+      res.status(500).json({ error: 'Không thể gửi lời chúc/góp ý lúc này' });
+    }
+  });
+
+  app.get('/api/feedback/my', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const wishes = await db.getMyFeedbackWishes(req.user!.userId);
+      res.json({ success: true, wishes });
+    } catch (err: any) {
+      console.error('Get my feedback error:', err);
+      res.status(500).json({ error: 'Không thể tải lịch sử lời chúc' });
+    }
+  });
+
+  app.get('/api/admin/feedback', authenticate, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+      const wishes = await db.getAllFeedbackWishes(status);
+      res.json({ success: true, wishes });
+    } catch (err: any) {
+      console.error('Admin get feedback error:', err);
+      res.status(500).json({ error: 'Không thể tải danh sách lời chúc/góp ý' });
+    }
+  });
+
+  app.post('/api/admin/feedback/:id/reward', authenticate, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const feedbackId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const { rewardAmount, adminNote } = req.body;
+      const amount = Math.floor(Number(rewardAmount));
+      if (isNaN(amount) || amount <= 0) {
+        res.status(400).json({ error: 'Số tiền thưởng phải lớn hơn 0$' });
+        return;
+      }
+
+      const result = await db.rewardFeedbackWish({
+        feedbackId,
+        rewardAmount: amount,
+        adminNote: adminNote ? String(adminNote).trim() : undefined,
+      });
+
+      res.json({
+        success: true,
+        message: `Đã thưởng +${amount.toLocaleString()}$ cho người chơi thành công!`,
+        newBalance: result.newBalance,
+        feedback: result.feedback,
+      });
+    } catch (err: any) {
+      console.error('Admin reward feedback error:', err);
+      res.status(500).json({ error: err.message || 'Không thể duyệt thưởng' });
+    }
+  });
+
+
   // --- STATS & HISTORY ---
   app.get('/api/history', authenticate, async (req: AuthenticatedRequest, res: Response) => {
     try {

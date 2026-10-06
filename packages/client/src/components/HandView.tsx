@@ -7,6 +7,7 @@ interface HandViewProps {
   selectedCardIds: string[];
   onToggleSelect: (cardId: string) => void;
   isThrowing?: boolean;
+  isSorting?: boolean;
 }
 
 export const HandView: React.FC<HandViewProps> = ({
@@ -14,6 +15,7 @@ export const HandView: React.FC<HandViewProps> = ({
   selectedCardIds,
   onToggleSelect,
   isThrowing = false,
+  isSorting = false,
 }) => {
   const cardCount = hand.length;
 
@@ -51,10 +53,13 @@ export const HandView: React.FC<HandViewProps> = ({
                 zIndex: isBeingThrown ? 100 + idx : idx,
                 transform: !isBeingThrown && isSelected ? `translateY(${raiseY}px)` : undefined,
                 transition: 'transform 0.16s cubic-bezier(0.2, 0.8, 0.4, 1)',
+                animationDelay: isSorting ? `${idx * 0.025}s` : undefined,
               }}
               className={`relative shrink-0 cursor-pointer ${
                 isBeingThrown
                   ? 'animate-card-throw'
+                  : isSorting
+                  ? 'animate-card-sort'
                   : !isSelected
                   ? 'hover:-translate-y-2'
                   : ''

@@ -64,6 +64,25 @@ export interface GameResultRow {
   end_reason?: string;
 }
 
+export interface FeedbackWishRow {
+  id: string;
+  user_id: string;
+  type: 'wish' | 'feedback' | 'bug';
+  title?: string | null;
+  content: string;
+  reward_amount: number;
+  status: 'pending' | 'rewarded' | 'rejected';
+  admin_note?: string | null;
+  rewarded_at?: Date | string | null;
+  created_at: Date | string;
+}
+
+export interface FeedbackWishView extends FeedbackWishRow {
+  username?: string;
+  display_name?: string;
+  balance?: number;
+}
+
 function getTodayDateStr(): string {
   // Vietnam timezone GMT+7
   const d = new Date(Date.now() + 7 * 3600 * 1000);
@@ -90,6 +109,7 @@ class DatabaseAdapter {
     gameEvents: [] as any[],
     scoreLedger: [] as ScoreLedgerRow[],
     gameResults: [] as GameResultRow[],
+    feedbackWishes: [] as FeedbackWishRow[],
   };
   private localFilePath = path.resolve(process.cwd(), 'data_local.json');
 
@@ -135,6 +155,22 @@ class DatabaseAdapter {
           try { await conn.query('ALTER TABLE users ADD COLUMN last_login_reward_at VARCHAR(32) DEFAULT NULL'); } catch {}
           try { await conn.query('ALTER TABLE users ADD COLUMN login_streak INT NOT NULL DEFAULT 0'); } catch {}
           try { await conn.query('ALTER TABLE rooms ADD COLUMN bet_amount INT NOT NULL DEFAULT 10'); } catch {}
+          try {
+            await conn.query(`CREATE TABLE IF NOT EXISTS feedback_wishes (
+              id VARCHAR(64) PRIMARY KEY,
+              user_id VARCHAR(64) NOT NULL,
+              type VARCHAR(32) NOT NULL DEFAULT 'wish',
+              title VARCHAR(128) DEFAULT NULL,
+              content TEXT NOT NULL,
+              reward_amount INT NOT NULL DEFAULT 0,
+              status VARCHAR(32) NOT NULL DEFAULT 'pending',
+              admin_note TEXT DEFAULT NULL,
+              rewarded_at DATETIME DEFAULT NULL,
+              created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+              INDEX idx_feedback_user (user_id),
+              INDEX idx_feedback_status (status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+          } catch {}
 
           console.log('MySQL schema verified and ready.');
         }
@@ -169,6 +205,20 @@ class DatabaseAdapter {
           try { await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_reward_at VARCHAR(32) DEFAULT NULL'); } catch {}
           try { await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS login_streak INT NOT NULL DEFAULT 0'); } catch {}
           try { await client.query('ALTER TABLE rooms ADD COLUMN IF NOT EXISTS bet_amount INT NOT NULL DEFAULT 10'); } catch {}
+          try {
+            await client.query(`CREATE TABLE IF NOT EXISTS feedback_wishes (
+              id VARCHAR(64) PRIMARY KEY,
+              user_id VARCHAR(64) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              type VARCHAR(32) NOT NULL DEFAULT 'wish',
+              title VARCHAR(128),
+              content TEXT NOT NULL,
+              reward_amount INT NOT NULL DEFAULT 0,
+              status VARCHAR(32) NOT NULL DEFAULT 'pending',
+              admin_note TEXT,
+              rewarded_at TIMESTAMP,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )`);
+          } catch {}
 
           console.log('PostgreSQL migrations applied successfully.');
         }
@@ -187,7 +237,8 @@ class DatabaseAdapter {
     if (fs.existsSync(this.localFilePath)) {
       try {
         const raw = fs.readFileSync(this.localFilePath, 'utf8');
-        const parsed = JSON.parse(raw);
+        if (raw && raw.trim().length > 0) {
+          const parsed = JSON.parse(raw);
         if (parsed.users) {
           for (const u of parsed.users) {
             u.created_at = new Date(u.created_at);
@@ -214,6 +265,8 @@ class DatabaseAdapter {
         }
         if (parsed.scoreLedger) this.localData.scoreLedger = parsed.scoreLedger;
         if (parsed.gameResults) this.localData.gameResults = parsed.gameResults;
+        if (parsed.feedbackWishes) this.localData.feedbackWishes = parsed.feedbackWishes;
+        }
       } catch (e) {
         console.error('Error loading local data file:', e);
       }
@@ -229,6 +282,7 @@ class DatabaseAdapter {
         rooms: Array.from(this.localData.rooms.values()),
         scoreLedger: this.localData.scoreLedger,
         gameResults: this.localData.gameResults,
+        feedbackWishes: this.localData.feedbackWishes,
       };
       fs.writeFileSync(this.localFilePath, JSON.stringify(dataToSave, null, 2), 'utf8');
     } catch (e) {
@@ -1007,6 +1061,188 @@ class DatabaseAdapter {
       filtered = filtered.filter(r => r.mode === mode);
     }
     return filtered.slice(-limit).reverse();
+  }
+
+  // --- FEEDBACK & WISHES METHODS ---
+  async createFeedbackWish(params: {
+    id: string;
+    userId: string;
+    type: 'wish' | 'feedback' | 'bug';
+    title?: string;
+    content: string;
+  }): Promise<FeedbackWishRow> {
+    const row: FeedbackWishRow = {
+      id: params.id,
+      user_id: params.userId,
+      type: params.type || 'wish',
+      title: params.title || null,
+      content: params.content,
+      reward_amount: 0,
+      status: 'pending',
+      admin_note: null,
+      rewarded_at: null,
+      created_at: new Date().toISOString(),
+    };
+
+    if (this.dbType === 'mysql' && this.mysqlPool) {
+      await this.mysqlPool.query(
+        'INSERT INTO feedback_wishes (id, user_id, type, title, content, reward_amount, status, created_at) VALUES (?, ?, ?, ?, ?, 0, "pending", NOW())',
+        [row.id, row.user_id, row.type, row.title, row.content]
+      );
+      return row;
+    }
+
+    if (this.dbType === 'pg' && this.pgPool) {
+      await this.pgPool.query(
+        'INSERT INTO feedback_wishes (id, user_id, type, title, content, reward_amount, status, created_at) VALUES ($1, $2, $3, $4, $5, 0, \'pending\', NOW())',
+        [row.id, row.user_id, row.type, row.title, row.content]
+      );
+      return row;
+    }
+
+    this.localData.feedbackWishes.push(row);
+    this.persistLocal();
+    return row;
+  }
+
+  async getMyFeedbackWishes(userId: string): Promise<FeedbackWishRow[]> {
+    if (this.dbType === 'mysql' && this.mysqlPool) {
+      const [rows] = await this.mysqlPool.query<any[]>(
+        'SELECT * FROM feedback_wishes WHERE user_id = ? ORDER BY created_at DESC',
+        [userId]
+      );
+      return rows;
+    }
+
+    if (this.dbType === 'pg' && this.pgPool) {
+      const res = await this.pgPool.query(
+        'SELECT * FROM feedback_wishes WHERE user_id = $1 ORDER BY created_at DESC',
+        [userId]
+      );
+      return res.rows;
+    }
+
+    return this.localData.feedbackWishes
+      .filter(w => w.user_id === userId)
+      .slice()
+      .reverse();
+  }
+
+  async getAllFeedbackWishes(status?: string): Promise<FeedbackWishView[]> {
+    if (this.dbType === 'mysql' && this.mysqlPool) {
+      let query = `SELECT fw.*, u.username, u.display_name, u.balance
+        FROM feedback_wishes fw
+        JOIN users u ON fw.user_id = u.id`;
+      const params: any[] = [];
+      if (status && status !== 'all') {
+        query += ' WHERE fw.status = ?';
+        params.push(status);
+      }
+      query += ' ORDER BY fw.created_at DESC';
+      const [rows] = await this.mysqlPool.query<any[]>(query, params);
+      return rows;
+    }
+
+    if (this.dbType === 'pg' && this.pgPool) {
+      let query = `SELECT fw.*, u.username, u.display_name, u.balance
+        FROM feedback_wishes fw
+        JOIN users u ON fw.user_id = u.id`;
+      const params: any[] = [];
+      if (status && status !== 'all') {
+        query += ' WHERE fw.status = $1';
+        params.push(status);
+      }
+      query += ' ORDER BY fw.created_at DESC';
+      const res = await this.pgPool.query(query, params);
+      return res.rows;
+    }
+
+    let items = this.localData.feedbackWishes;
+    if (status && status !== 'all') {
+      items = items.filter(w => w.status === status);
+    }
+    return items
+      .map(w => {
+        const user = this.localData.users.get(w.user_id);
+        return {
+          ...w,
+          username: user?.username || 'Ẩn danh',
+          display_name: user?.display_name || 'Người chơi',
+          balance: user?.balance ?? 1000,
+        };
+      })
+      .reverse();
+  }
+
+  async rewardFeedbackWish(params: {
+    feedbackId: string;
+    rewardAmount: number;
+    adminNote?: string;
+  }): Promise<{ success: boolean; newBalance: number; feedback: FeedbackWishRow }> {
+    const { feedbackId, rewardAmount, adminNote } = params;
+
+    let targetUserId = '';
+    let currentFeedback: FeedbackWishRow | null = null;
+
+    if (this.dbType === 'mysql' && this.mysqlPool) {
+      const [rows] = await this.mysqlPool.query<any[]>(
+        'SELECT * FROM feedback_wishes WHERE id = ? LIMIT 1',
+        [feedbackId]
+      );
+      if (!rows || rows.length === 0) {
+        throw new Error('Không tìm thấy lời chúc/góp ý này');
+      }
+      currentFeedback = rows[0];
+      targetUserId = currentFeedback!.user_id;
+
+      await this.mysqlPool.query(
+        'UPDATE feedback_wishes SET status = "rewarded", reward_amount = ?, admin_note = ?, rewarded_at = NOW() WHERE id = ?',
+        [rewardAmount, adminNote || null, feedbackId]
+      );
+    } else if (this.dbType === 'pg' && this.pgPool) {
+      const res = await this.pgPool.query(
+        'SELECT * FROM feedback_wishes WHERE id = $1 LIMIT 1',
+        [feedbackId]
+      );
+      if (!res.rows || res.rows.length === 0) {
+        throw new Error('Không tìm thấy lời chúc/góp ý này');
+      }
+      currentFeedback = res.rows[0];
+      targetUserId = currentFeedback!.user_id;
+
+      await this.pgPool.query(
+        'UPDATE feedback_wishes SET status = \'rewarded\', reward_amount = $1, admin_note = $2, rewarded_at = NOW() WHERE id = $3',
+        [rewardAmount, adminNote || null, feedbackId]
+      );
+    } else {
+      const found = this.localData.feedbackWishes.find(w => w.id === feedbackId);
+      if (!found) {
+        throw new Error('Không tìm thấy lời chúc/góp ý này');
+      }
+      currentFeedback = found;
+      targetUserId = found.user_id;
+
+      found.status = 'rewarded';
+      found.reward_amount = rewardAmount;
+      found.admin_note = adminNote || null;
+      found.rewarded_at = new Date().toISOString();
+      this.persistLocal();
+    }
+
+    // Reward user with balance
+    const newBalance = await this.updateUserBalance(targetUserId, rewardAmount);
+
+    return {
+      success: true,
+      newBalance,
+      feedback: {
+        ...currentFeedback!,
+        status: 'rewarded',
+        reward_amount: rewardAmount,
+        admin_note: adminNote || null,
+        rewarded_at: new Date().toISOString(),
+      },
+    };
   }
 }
 
