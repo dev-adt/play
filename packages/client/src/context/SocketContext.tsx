@@ -8,6 +8,7 @@ export interface RoomClientView {
   code: string;
   name: string;
   mode: 'basic' | 'fund';
+  betAmount: number;
   hasPassword: boolean;
   maxPlayers: number;
   ownerId: string;
@@ -17,6 +18,7 @@ export interface RoomClientView {
     userId: string;
     username: string;
     displayName: string;
+    balance: number;
     seatIndex: number;
     isReady: boolean;
     isOnline: boolean;
@@ -26,6 +28,7 @@ export interface RoomClientView {
     gameId: string;
     roomId: string;
     mode: 'basic' | 'fund';
+    betAmount: number;
     phase: 'dealing' | 'playing' | 'ended';
     stateVersion: number;
     mySeatIndex: number;
@@ -39,6 +42,7 @@ export interface RoomClientView {
     players: {
       id: string;
       displayName: string;
+      balance: number;
       seatIndex: number;
       cardCount: number;
       hasPassed: boolean;

@@ -10,6 +10,9 @@ export interface UserRow {
   username: string;
   password_hash: string;
   display_name: string;
+  balance: number;
+  last_login_reward_at: string | null;
+  login_streak: number;
   created_at: Date;
 }
 
@@ -30,6 +33,7 @@ export interface RoomRow {
   mode: string;
   password_hash: string | null;
   max_players: number;
+  bet_amount: number;
   owner_id: string;
   is_active: boolean;
   created_at: Date;
@@ -58,6 +62,17 @@ export interface GameResultRow {
   created_at: Date;
   mode?: string;
   end_reason?: string;
+}
+
+function getTodayDateStr(): string {
+  // Vietnam timezone GMT+7
+  const d = new Date(Date.now() + 7 * 3600 * 1000);
+  return d.toISOString().slice(0, 10);
+}
+
+function getYesterdayDateStr(): string {
+  const d = new Date(Date.now() + 7 * 3600 * 1000 - 24 * 3600 * 1000);
+  return d.toISOString().slice(0, 10);
 }
 
 class DatabaseAdapter {
@@ -115,6 +130,12 @@ class DatabaseAdapter {
               // Ignore table already exists
             }
           }
+          // Column migrations if tables already existed
+          try { await conn.query('ALTER TABLE users ADD COLUMN balance INT NOT NULL DEFAULT 1000'); } catch {}
+          try { await conn.query('ALTER TABLE users ADD COLUMN last_login_reward_at VARCHAR(32) DEFAULT NULL'); } catch {}
+          try { await conn.query('ALTER TABLE users ADD COLUMN login_streak INT NOT NULL DEFAULT 0'); } catch {}
+          try { await conn.query('ALTER TABLE rooms ADD COLUMN bet_amount INT NOT NULL DEFAULT 10'); } catch {}
+
           console.log('MySQL schema verified and ready.');
         }
 
@@ -142,6 +163,13 @@ class DatabaseAdapter {
         if (fs.existsSync(schemaPath)) {
           const schemaSql = fs.readFileSync(schemaPath, 'utf8');
           await client.query(schemaSql);
+
+          // Column migrations if tables already existed
+          try { await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS balance INT NOT NULL DEFAULT 1000'); } catch {}
+          try { await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_reward_at VARCHAR(32) DEFAULT NULL'); } catch {}
+          try { await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS login_streak INT NOT NULL DEFAULT 0'); } catch {}
+          try { await client.query('ALTER TABLE rooms ADD COLUMN IF NOT EXISTS bet_amount INT NOT NULL DEFAULT 10'); } catch {}
+
           console.log('PostgreSQL migrations applied successfully.');
         }
         client.release();
@@ -163,6 +191,9 @@ class DatabaseAdapter {
         if (parsed.users) {
           for (const u of parsed.users) {
             u.created_at = new Date(u.created_at);
+            u.balance = u.balance !== undefined ? Number(u.balance) : 1000;
+            u.login_streak = Number(u.login_streak) || 0;
+            u.last_login_reward_at = u.last_login_reward_at || null;
             this.localData.users.set(u.id, u);
             this.localData.usersByUsername.set(u.username.toLowerCase(), u);
           }
@@ -176,6 +207,7 @@ class DatabaseAdapter {
         if (parsed.rooms) {
           for (const r of parsed.rooms) {
             r.created_at = new Date(r.created_at);
+            r.bet_amount = Number(r.bet_amount) || 10;
             this.localData.rooms.set(r.id, r);
             this.localData.roomsByCode.set(r.code, r);
           }
@@ -233,24 +265,28 @@ class DatabaseAdapter {
     return this.localData.users.get(id) || null;
   }
 
-  async createUser(user: { id: string; username: string; password_hash: string; display_name: string }): Promise<UserRow> {
+  async createUser(user: { id: string; username: string; password_hash: string; display_name: string; balance?: number }): Promise<UserRow> {
+    const initialBalance = user.balance !== undefined ? user.balance : 1000;
     const row: UserRow = {
       id: user.id,
       username: user.username,
       password_hash: user.password_hash,
       display_name: user.display_name,
+      balance: initialBalance,
+      last_login_reward_at: null,
+      login_streak: 0,
       created_at: new Date(),
     };
 
     if (this.dbType === 'mysql' && this.mysqlPool) {
       await this.mysqlPool.query(
-        'INSERT INTO users (id, username, password_hash, display_name, created_at) VALUES (?, ?, ?, ?, NOW())',
-        [row.id, row.username, row.password_hash, row.display_name]
+        'INSERT INTO users (id, username, password_hash, display_name, balance, last_login_reward_at, login_streak, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())',
+        [row.id, row.username, row.password_hash, row.display_name, row.balance, row.last_login_reward_at, row.login_streak]
       );
     } else if (this.dbType === 'pg' && this.pgPool) {
       await this.pgPool.query(
-        'INSERT INTO users (id, username, password_hash, display_name, created_at) VALUES ($1, $2, $3, $4, $5)',
-        [row.id, row.username, row.password_hash, row.display_name, row.created_at]
+        'INSERT INTO users (id, username, password_hash, display_name, balance, last_login_reward_at, login_streak, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+        [row.id, row.username, row.password_hash, row.display_name, row.balance, row.last_login_reward_at, row.login_streak, row.created_at]
       );
     } else {
       this.localData.users.set(row.id, row);
@@ -258,6 +294,157 @@ class DatabaseAdapter {
       this.persistLocal();
     }
     return row;
+  }
+
+  async updateUserBalance(userId: string, delta: number): Promise<number> {
+    const user = await this.getUserById(userId);
+    if (!user) return 0;
+    const current = user.balance !== undefined ? Number(user.balance) : 1000;
+    const newBalance = Math.max(0, current + delta);
+
+    if (this.dbType === 'mysql' && this.mysqlPool) {
+      await this.mysqlPool.query('UPDATE users SET balance = ? WHERE id = ?', [newBalance, userId]);
+    } else if (this.dbType === 'pg' && this.pgPool) {
+      await this.pgPool.query('UPDATE users SET balance = $1 WHERE id = $2', [newBalance, userId]);
+    } else {
+      user.balance = newBalance;
+      this.persistLocal();
+    }
+    return newBalance;
+  }
+
+  async setUserBalance(userId: string, newBalance: number): Promise<number> {
+    const user = await this.getUserById(userId);
+    if (!user) return 0;
+    const validBalance = Math.max(0, Math.floor(newBalance));
+
+    if (this.dbType === 'mysql' && this.mysqlPool) {
+      await this.mysqlPool.query('UPDATE users SET balance = ? WHERE id = ?', [validBalance, userId]);
+    } else if (this.dbType === 'pg' && this.pgPool) {
+      await this.pgPool.query('UPDATE users SET balance = $1 WHERE id = $2', [validBalance, userId]);
+    } else {
+      user.balance = validBalance;
+      this.persistLocal();
+    }
+    return validBalance;
+  }
+
+  async getDailyRewardStatus(userId: string): Promise<{
+    canClaim: boolean;
+    currentStreak: number;
+    nextRewardDay: number;
+    nextRewardAmount: number;
+    lastRewardAt: string | null;
+    rewardsList: number[];
+  }> {
+    const user = await this.getUserById(userId);
+    const rewardsList = [1000, 2000, 3000, 4000, 5000, 6000, 7000];
+    if (!user) {
+      return {
+        canClaim: false,
+        currentStreak: 0,
+        nextRewardDay: 1,
+        nextRewardAmount: 1000,
+        lastRewardAt: null,
+        rewardsList,
+      };
+    }
+
+    const todayStr = getTodayDateStr();
+    const yesterdayStr = getYesterdayDateStr();
+    const lastRewardAt = user.last_login_reward_at || null;
+    const currentStreak = user.login_streak || 0;
+
+    if (lastRewardAt === todayStr) {
+      // Already claimed today
+      const nextRewardDay = (currentStreak % 7) + 1;
+      return {
+        canClaim: false,
+        currentStreak,
+        nextRewardDay,
+        nextRewardAmount: nextRewardDay * 1000,
+        lastRewardAt,
+        rewardsList,
+      };
+    }
+
+    let nextRewardDay = 1;
+    if (lastRewardAt === yesterdayStr) {
+      // Consecutive login!
+      nextRewardDay = (currentStreak % 7) + 1;
+    } else {
+      // Missed streak or first time
+      nextRewardDay = 1;
+    }
+
+    return {
+      canClaim: true,
+      currentStreak,
+      nextRewardDay,
+      nextRewardAmount: nextRewardDay * 1000,
+      lastRewardAt,
+      rewardsList,
+    };
+  }
+
+  async claimDailyReward(userId: string): Promise<{
+    success: boolean;
+    claimedAmount: number;
+    newStreak: number;
+    newBalance: number;
+    error?: string;
+  }> {
+    const status = await this.getDailyRewardStatus(userId);
+    if (!status.canClaim) {
+      return {
+        success: false,
+        claimedAmount: 0,
+        newStreak: status.currentStreak,
+        newBalance: 0,
+        error: 'Bạn đã nhận quà đăng nhập hôm nay rồi. Hãy quay lại vào ngày mai!',
+      };
+    }
+
+    const user = await this.getUserById(userId);
+    if (!user) {
+      return {
+        success: false,
+        claimedAmount: 0,
+        newStreak: 0,
+        newBalance: 0,
+        error: 'Tài khoản không tồn tại',
+      };
+    }
+
+    const todayStr = getTodayDateStr();
+    const claimedAmount = status.nextRewardAmount;
+    const newStreak = status.nextRewardDay;
+    const currentBal = user.balance !== undefined ? Number(user.balance) : 1000;
+    const newBalance = currentBal + claimedAmount;
+
+    if (this.dbType === 'mysql' && this.mysqlPool) {
+      await this.mysqlPool.query(
+        'UPDATE users SET balance = ?, last_login_reward_at = ?, login_streak = ? WHERE id = ?',
+        [newBalance, todayStr, newStreak, userId]
+      );
+    } else if (this.dbType === 'pg' && this.pgPool) {
+      await this.pgPool.query(
+        'UPDATE users SET balance = $1, last_login_reward_at = $2, login_streak = $3 WHERE id = $4',
+        [newBalance, todayStr, newStreak, userId]
+      );
+    } else {
+      user.balance = newBalance;
+      user.last_login_reward_at = todayStr;
+      user.login_streak = newStreak;
+      this.persistLocal();
+    }
+
+    return {
+      success: true,
+      claimedAmount,
+      newStreak,
+      newBalance,
+    };
   }
 
   async updateUserPassword(username: string, newHash: string): Promise<boolean> {
@@ -295,7 +482,7 @@ class DatabaseAdapter {
   async getAllUsersWithStats(): Promise<any[]> {
     if (this.dbType === 'mysql' && this.mysqlPool) {
       const [rows] = await this.mysqlPool.query<any[]>(`
-        SELECT u.id, u.username, u.display_name, u.created_at,
+        SELECT u.id, u.username, u.display_name, u.created_at, u.balance, u.login_streak, u.last_login_reward_at,
                COALESCE(sb.games_played, 0) as basic_games,
                COALESCE(sb.wins, 0) as basic_wins,
                COALESCE(sb.net_score, 0) as basic_net_score,
@@ -325,6 +512,9 @@ class DatabaseAdapter {
           username: r.username,
           displayName: r.display_name,
           createdAt: r.created_at,
+          balance: r.balance !== undefined && r.balance !== null ? Number(r.balance) : 1000,
+          loginStreak: Number(r.login_streak) || 0,
+          lastLoginRewardAt: r.last_login_reward_at || null,
           isGuest,
           isAdmin,
           basic: {
@@ -348,7 +538,7 @@ class DatabaseAdapter {
 
     if (this.dbType === 'pg' && this.pgPool) {
       const res = await this.pgPool.query(`
-        SELECT u.id, u.username, u.display_name, u.created_at,
+        SELECT u.id, u.username, u.display_name, u.created_at, u.balance, u.login_streak, u.last_login_reward_at,
                COALESCE(sb.games_played, 0) as basic_games,
                COALESCE(sb.wins, 0) as basic_wins,
                COALESCE(sb.net_score, 0) as basic_net_score,
@@ -378,6 +568,9 @@ class DatabaseAdapter {
           username: r.username,
           displayName: r.display_name,
           createdAt: r.created_at,
+          balance: r.balance !== undefined && r.balance !== null ? Number(r.balance) : 1000,
+          loginStreak: Number(r.login_streak) || 0,
+          lastLoginRewardAt: r.last_login_reward_at || null,
           isGuest,
           isAdmin,
           basic: {
@@ -426,6 +619,9 @@ class DatabaseAdapter {
         username: u.username,
         displayName: u.display_name,
         createdAt: u.created_at,
+        balance: u.balance !== undefined ? Number(u.balance) : 1000,
+        loginStreak: Number(u.login_streak) || 0,
+        lastLoginRewardAt: u.last_login_reward_at || null,
         isGuest,
         isAdmin,
         basic: {
@@ -580,8 +776,10 @@ class DatabaseAdapter {
     mode: string;
     password_hash: string | null;
     max_players: number;
+    bet_amount?: number;
     owner_id: string;
   }): Promise<RoomRow> {
+    const betAmount = room.bet_amount && room.bet_amount >= 10 && room.bet_amount % 10 === 0 ? room.bet_amount : 10;
     const row: RoomRow = {
       id: room.id,
       code: room.code,
@@ -589,6 +787,7 @@ class DatabaseAdapter {
       mode: room.mode,
       password_hash: room.password_hash,
       max_players: room.max_players,
+      bet_amount: betAmount,
       owner_id: room.owner_id,
       is_active: true,
       created_at: new Date(),
@@ -596,13 +795,13 @@ class DatabaseAdapter {
 
     if (this.dbType === 'mysql' && this.mysqlPool) {
       await this.mysqlPool.query(
-        'INSERT INTO rooms (id, code, name, mode, password_hash, max_players, owner_id, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())',
-        [row.id, row.code, row.name, row.mode, row.password_hash, row.max_players, row.owner_id, 1]
+        'INSERT INTO rooms (id, code, name, mode, password_hash, max_players, bet_amount, owner_id, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())',
+        [row.id, row.code, row.name, row.mode, row.password_hash, row.max_players, row.bet_amount, row.owner_id, 1]
       );
     } else if (this.dbType === 'pg' && this.pgPool) {
       await this.pgPool.query(
-        'INSERT INTO rooms (id, code, name, mode, password_hash, max_players, owner_id, is_active, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
-        [row.id, row.code, row.name, row.mode, row.password_hash, row.max_players, row.owner_id, row.is_active, row.created_at]
+        'INSERT INTO rooms (id, code, name, mode, password_hash, max_players, bet_amount, owner_id, is_active, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)',
+        [row.id, row.code, row.name, row.mode, row.password_hash, row.max_players, row.bet_amount, row.owner_id, row.is_active, row.created_at]
       );
     } else {
       this.localData.rooms.set(row.id, row);

@@ -82,6 +82,7 @@ export function createServer() {
         userId: newUser.id,
         username: newUser.username,
         displayName: newUser.display_name,
+        balance: newUser.balance,
         isAdmin,
       };
       const token = generateToken(tokenPayload);
@@ -121,12 +122,14 @@ export function createServer() {
         username,
         display_name: displayName,
         password_hash: passwordHash,
+        balance: 1000, // Guest account given 1000$ by default
       });
 
       const tokenPayload = {
         userId: newUser.id,
         username: newUser.username,
         displayName: newUser.display_name,
+        balance: newUser.balance,
         isAdmin: false,
       };
       const token = generateToken(tokenPayload);
@@ -175,6 +178,7 @@ export function createServer() {
         userId: user.id,
         username: user.username,
         displayName: user.display_name,
+        balance: user.balance !== undefined ? user.balance : 1000,
         isAdmin,
       };
       const token = generateToken(tokenPayload);
@@ -206,14 +210,45 @@ export function createServer() {
 
   app.get('/api/auth/me', authenticate, async (req: AuthenticatedRequest, res: Response) => {
     try {
+      const dbUser = await db.getUserById(req.user!.userId);
       const user = {
         ...req.user!,
+        balance: dbUser?.balance !== undefined ? dbUser.balance : 1000,
         isAdmin: req.user!.username.toLowerCase() === 'admin',
       };
       const stats = await db.getPlayerStats(user.userId);
       res.json({ user, stats });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
+    }
+  });
+
+  // --- DAILY LOGIN REWARD ROUTES ---
+  app.get('/api/daily-reward/status', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const status = await db.getDailyRewardStatus(req.user!.userId);
+      res.json({ status });
+    } catch (err: any) {
+      console.error('Daily reward status error:', err);
+      res.status(500).json({ error: 'Không thể tải thông tin quà đăng nhập' });
+    }
+  });
+
+  app.post('/api/daily-reward/claim', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const result = await db.claimDailyReward(req.user!.userId);
+      if (!result.success) {
+        res.status(400).json({ error: result.error });
+        return;
+      }
+      res.json({
+        ...result,
+        rewardAmount: result.claimedAmount,
+        currentStreak: result.newStreak,
+      });
+    } catch (err: any) {
+      console.error('Daily reward claim error:', err);
+      res.status(500).json({ error: 'Không thể nhận quà đăng nhập' });
     }
   });
 
@@ -262,6 +297,77 @@ export function createServer() {
     }
   });
 
+  // Public summary for in-game player inspection
+  app.get('/api/users/:userId/summary', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const targetUserId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
+      if (!targetUserId) {
+        res.status(400).json({ error: 'Thiếu mã người dùng' });
+        return;
+      }
+      const targetUser = await db.getUserById(targetUserId);
+      if (!targetUser) {
+        res.status(404).json({ error: 'Không tìm thấy người chơi' });
+        return;
+      }
+      const history = await db.getPlayerGameHistory(targetUserId, 15);
+      const stats = await db.getPlayerStats(targetUserId);
+      res.json({
+        user: {
+          id: targetUser.id,
+          username: targetUser.username,
+          displayName: targetUser.display_name,
+          balance: targetUser.balance !== undefined ? targetUser.balance : 1000,
+        },
+        stats,
+        history,
+      });
+    } catch (err: any) {
+      console.error('Get user summary error:', err);
+      res.status(500).json({ error: 'Không thể tải thông tin người chơi' });
+    }
+  });
+
+  app.post('/api/admin/users/:userId/adjust-balance', authenticate, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const targetUserId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
+      const { action, amount } = req.body;
+      const numAmount = Math.floor(Number(amount));
+      if (isNaN(numAmount) || numAmount < 0) {
+        res.status(400).json({ error: 'Số tiền phải là số nguyên dương hợp lệ' });
+        return;
+      }
+      const targetUser = await db.getUserById(targetUserId);
+      if (!targetUser) {
+        res.status(404).json({ error: 'Không tìm thấy người chơi' });
+        return;
+      }
+
+      let newBalance = targetUser.balance !== undefined ? targetUser.balance : 1000;
+      if (action === 'add') {
+        newBalance = await db.updateUserBalance(targetUserId, numAmount);
+      } else if (action === 'subtract') {
+        newBalance = await db.updateUserBalance(targetUserId, -numAmount);
+      } else if (action === 'set') {
+        newBalance = await db.setUserBalance(targetUserId, numAmount);
+      } else {
+        res.status(400).json({ error: 'Hành động không hợp lệ (hỗ trợ: add, subtract, set)' });
+        return;
+      }
+
+      res.json({
+        success: true,
+        userId: targetUserId,
+        username: targetUser.username,
+        balance: newBalance,
+        message: `Cập nhật số dư thành công: ${newBalance.toLocaleString()}$`,
+      });
+    } catch (err: any) {
+      console.error('Admin adjust balance error:', err);
+      res.status(500).json({ error: 'Không thể điều chỉnh số dư của tài khoản' });
+    }
+  });
+
   // --- STATS & HISTORY ---
   app.get('/api/history', authenticate, async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -282,16 +388,25 @@ export function createServer() {
   // --- ROOMS API ---
   app.post('/api/rooms/create', authenticate, async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { name, mode, password, maxPlayers } = req.body;
+      const { name, mode, password, maxPlayers, betAmount } = req.body;
       const roomName = name && typeof name === 'string' && name.trim().length > 0 ? name.trim() : `Bàn của ${req.user!.displayName}`;
       const gameMode = mode === 'fund' ? 'fund' : 'basic';
       const maxP = maxPlayers && maxPlayers >= 2 && maxPlayers <= 4 ? parseInt(maxPlayers, 10) : 4;
+      if (betAmount !== undefined && betAmount !== null && betAmount !== '') {
+        const parsedBet = parseInt(String(betAmount), 10);
+        if (isNaN(parsedBet) || parsedBet < 10 || parsedBet % 10 !== 0) {
+          res.status(400).json({ error: 'Mức cược phải là bội số của 10 và tối thiểu là 10$' });
+          return;
+        }
+      }
+      const validBet = betAmount ? parseInt(String(betAmount), 10) : 10;
 
       const room = await roomManager.createRoom({
         name: roomName,
         mode: gameMode,
         password: password ? String(password) : undefined,
         maxPlayers: maxP,
+        betAmount: validBet,
         owner: {
           id: req.user!.userId,
           username: req.user!.username,
@@ -305,6 +420,7 @@ export function createServer() {
           code: room.code,
           name: room.name,
           mode: room.mode,
+          betAmount: room.betAmount,
           hasPassword: !!room.passwordHash,
           maxPlayers: room.maxPlayers,
           link: `/room/${room.code}`,
@@ -341,6 +457,7 @@ export function createServer() {
             code: openRoom.code,
             name: openRoom.name,
             mode: openRoom.mode,
+            betAmount: openRoom.betAmount,
             maxPlayers: openRoom.maxPlayers,
             hasPassword: false,
           },
@@ -353,6 +470,7 @@ export function createServer() {
         name: `Bàn Chơi Nhanh #${Math.floor(100 + Math.random() * 900)}`,
         mode: gameMode,
         maxPlayers: maxP || 4,
+        betAmount: 10,
         owner: {
           id: req.user!.userId,
           username: req.user!.username,
@@ -366,6 +484,7 @@ export function createServer() {
           code: newRoom.code,
           name: newRoom.name,
           mode: newRoom.mode,
+          betAmount: newRoom.betAmount,
           maxPlayers: newRoom.maxPlayers,
           hasPassword: false,
         },
@@ -391,6 +510,7 @@ export function createServer() {
           code: room.code,
           name: room.name,
           mode: room.mode,
+          betAmount: room.betAmount,
           hasPassword: !!room.passwordHash,
           maxPlayers: room.maxPlayers,
           isGameActive: !!(room.activeGame && room.activeGame.phase === 'playing'),

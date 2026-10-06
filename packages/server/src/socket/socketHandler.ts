@@ -2,6 +2,7 @@ import { Server, Socket } from 'socket.io';
 import { authenticateSocketToken } from '../auth/auth.js';
 import { roomManager, Room } from '../rooms/RoomManager.js';
 import { comparePassword } from '../auth/auth.js';
+import { db } from '../db/database.js';
 
 export function setupSocketServer(io: Server) {
   // Set up room broadcast callback
@@ -91,8 +92,9 @@ export function setupSocketServer(io: Server) {
         return;
       }
 
+      const userRow = await db.getUserById(user.userId);
       const res = room.takeSeat(
-        { id: user.userId, username: user.username, displayName: user.displayName },
+        { id: user.userId, username: user.username, displayName: user.displayName, balance: userRow?.balance ?? 1000 },
         data.seatIndex,
         socket.id
       );

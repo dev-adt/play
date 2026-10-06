@@ -9,6 +9,7 @@ export interface PublicRoomInfo {
   playerCount: number;
   hasPassword: boolean;
   isGameActive: boolean;
+  betAmount?: number;
 }
 
 interface RoomBrowserModalProps {
@@ -207,6 +208,10 @@ export const RoomBrowserModal: React.FC<RoomBrowserModalProps> = ({
                       <span>•</span>
                       <span className="text-amber-200/80">
                         {r.mode === 'fund' ? 'Góp quỹ' : 'Đếm lá'}
+                      </span>
+                      <span>•</span>
+                      <span className="text-yellow-300 font-mono font-bold bg-amber-500/20 px-1 rounded">
+                        Cược: {r.betAmount || 10}$
                       </span>
                       <span>•</span>
                       <span className={r.isGameActive ? 'text-rose-400 font-bold' : 'text-emerald-400 font-bold'}>

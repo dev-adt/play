@@ -23,6 +23,7 @@ import { JoinFriendModal } from '../components/JoinFriendModal';
 import { RulesModal } from '../components/RulesModal';
 import { HistoryModal } from '../components/HistoryModal';
 import { AdminModal } from '../components/AdminModal';
+import { DailyRewardModal } from '../components/DailyRewardModal';
 import { ShieldCheck } from 'lucide-react';
 
 interface HomePageProps {
@@ -38,6 +39,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToRoom }) => {
   const [showRules, setShowRules] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
+  const [showDailyReward, setShowDailyReward] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [quickJoining, setQuickJoining] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -222,15 +224,22 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToRoom }) => {
           )}
 
           {/* Gold Coin Balance Pill */}
-          <div className="flex items-center bg-black/55 backdrop-blur-md border-2 border-amber-400/60 rounded-full pl-2 pr-1 py-1 gap-1.5 shadow-lg">
+          <div
+            onClick={() => setShowDailyReward(true)}
+            className="flex items-center bg-black/55 backdrop-blur-md border-2 border-amber-400/60 rounded-full pl-2 pr-1 py-1 gap-1.5 shadow-lg cursor-pointer hover:border-amber-300 transition"
+            title="Điểm danh nhận quà mỗi ngày (1.000$ - 7.000$)"
+          >
             <Coins size={18} className="text-yellow-400 fill-yellow-400 drop-shadow" />
             <span className="text-xs font-black text-yellow-300 tracking-wider font-mono">
-              {formattedChips}
+              {(user?.balance ?? 1000).toLocaleString()}$
             </span>
             <button
-              onClick={() => showToast('Nhận thưởng hàng ngày: +50,000 Xu thành công!')}
-              className="w-6 h-6 rounded-full bg-gradient-to-b from-emerald-400 to-green-600 text-white flex items-center justify-center font-black shadow hover:brightness-110 active:scale-90 transition ml-1"
-              title="Nạp / Nhận xu miễn phí"
+              onClick={e => {
+                e.stopPropagation();
+                setShowDailyReward(true);
+              }}
+              className="w-6 h-6 rounded-full bg-gradient-to-b from-emerald-400 to-green-600 text-white flex items-center justify-center font-black shadow hover:brightness-110 active:scale-90 transition ml-1 cursor-pointer"
+              title="Nhận quà điểm danh hàng ngày"
             >
               <Plus size={14} strokeWidth={3} />
             </button>
@@ -457,14 +466,15 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToRoom }) => {
 
           {/* Daily Gift Claim with Timer Pill */}
           <div
-            onClick={() => showToast('Quà tặng tiếp theo sẽ mở sau 13h 22m')}
-            className="flex items-center bg-black/60 backdrop-blur-md border border-amber-400/50 rounded-full pl-1 pr-3 py-1 gap-2 cursor-pointer shadow-lg hover:border-amber-300 transition"
+            onClick={() => setShowDailyReward(true)}
+            className="flex items-center bg-black/60 backdrop-blur-md border border-amber-400/50 rounded-full pl-1 pr-3 py-1 gap-2 cursor-pointer shadow-lg hover:border-amber-300 transition group"
+            title="Điểm danh nhận quà mỗi ngày (1.000$ - 7.000$)"
           >
-            <div className="w-8 h-8 rounded-full bg-gradient-to-b from-[#9c27b0] to-[#6a1b9a] border border-[#ce93d8] flex items-center justify-center text-white shadow">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-b from-[#9c27b0] to-[#6a1b9a] border border-[#ce93d8] flex items-center justify-center text-white shadow group-hover:scale-110 transition">
               <Gift size={16} />
             </div>
-            <span className="text-xs font-bold text-amber-200">13h 22m</span>
-            <Coins size={15} className="text-yellow-400 fill-yellow-400" />
+            <span className="text-xs font-bold text-amber-200">Quà Ngày</span>
+            <Coins size={15} className="text-yellow-400 fill-yellow-400 animate-pulse" />
           </div>
         </div>
 
@@ -566,6 +576,16 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigateToRoom }) => {
 
       {/* Admin Dashboard Modal */}
       {showAdmin && <AdminModal onClose={() => setShowAdmin(false)} />}
+
+      {/* Daily Login Reward Modal */}
+      {showDailyReward && (
+        <DailyRewardModal
+          onClose={() => setShowDailyReward(false)}
+          onClaimSuccess={(amt) => {
+            showToast(`Nhận thành công +${amt.toLocaleString()}$ quà đăng nhập!`);
+          }}
+        />
+      )}
     </div>
   );
 };

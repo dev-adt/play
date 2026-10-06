@@ -8,6 +8,7 @@ export interface RoomMember {
   userId: string;
   username: string;
   displayName: string;
+  balance: number;
   seatIndex: number;
   isReady: boolean;
   isOnline: boolean;
@@ -30,6 +31,7 @@ export interface RoomClientView {
   code: string;
   name: string;
   mode: GameMode;
+  betAmount: number;
   hasPassword: boolean;
   maxPlayers: number;
   ownerId: string;
@@ -46,6 +48,7 @@ export class Room {
   public code: string;
   public name: string;
   public mode: GameMode;
+  public betAmount: number = 10;
   public passwordHash: string | null;
   public maxPlayers: number;
   public ownerId: string;
@@ -65,6 +68,7 @@ export class Room {
     code: string;
     name: string;
     mode: GameMode;
+    betAmount?: number;
     passwordHash: string | null;
     maxPlayers: number;
     ownerId: string;
@@ -74,6 +78,7 @@ export class Room {
     this.code = options.code;
     this.name = options.name;
     this.mode = options.mode;
+    this.betAmount = options.betAmount || 10;
     this.passwordHash = options.passwordHash;
     this.maxPlayers = options.maxPlayers;
     this.ownerId = options.ownerId;
@@ -86,7 +91,7 @@ export class Room {
   }
 
   public takeSeat(
-    user: { id: string; username: string; displayName: string },
+    user: { id: string; username: string; displayName: string; balance?: number },
     seatIndex: number,
     socketId: string
   ): { success: boolean; error?: string } {
@@ -125,15 +130,24 @@ export class Room {
       }
 
       // Allow spectator to take seat as a waiting player for next game!
+      const initialBal = user.balance !== undefined ? user.balance : 1000;
       this.seats[seatIndex] = {
         userId: user.id,
         username: user.username,
         displayName: user.displayName,
+        balance: initialBal,
         seatIndex,
         isReady: true,
         isOnline: true,
         socketId,
       };
+
+      db.getUserById(user.id).then(u => {
+        if (u && this.seats[seatIndex]?.userId === user.id) {
+          this.seats[seatIndex]!.balance = u.balance;
+          this.broadcast();
+        }
+      }).catch(() => {});
 
       this.addChatMessage(
         { id: 'system', displayName: 'Hệ thống' },
@@ -167,15 +181,24 @@ export class Room {
       return { success: false, error: 'Ghế này đã có người ngồi' };
     }
 
+    const initialBal = user.balance !== undefined ? user.balance : 1000;
     this.seats[seatIndex] = {
       userId: user.id,
       username: user.username,
       displayName: user.displayName,
+      balance: initialBal,
       seatIndex,
       isReady: user.id === this.ownerId, // Room owner is ready by default
       isOnline: true,
       socketId,
     };
+
+    db.getUserById(user.id).then(u => {
+      if (u && this.seats[seatIndex]?.userId === user.id) {
+        this.seats[seatIndex]!.balance = u.balance;
+        this.broadcast();
+      }
+    }).catch(() => {});
 
     this.broadcast();
     return { success: true };
@@ -287,11 +310,13 @@ export class Room {
       id: gameId,
       roomId: this.id,
       mode: this.mode,
+      betAmount: this.betAmount,
       players: seated.map(s => ({
         id: s.userId,
         username: s.username,
         displayName: s.displayName,
         seatIndex: s.seatIndex,
+        balance: s.balance,
       })),
       firstGame: isFirstGame,
       previousWinnerId: this.previousWinnerId,
@@ -301,6 +326,14 @@ export class Room {
             this.previousWinnerId = this.activeGame.finalResult.winners[0];
           } else {
             this.previousWinnerId = null;
+          }
+          // Sync seated member balances with DB
+          for (const s of this.seats) {
+            if (s) {
+              db.getUserById(s.userId).then(u => {
+                if (u && s) s.balance = u.balance;
+              }).catch(() => {});
+            }
           }
           this.scheduleAutoStartNextGame(3000);
         }
@@ -344,11 +377,13 @@ export class Room {
       id: gameId,
       roomId: this.id,
       mode: this.mode,
+      betAmount: this.betAmount,
       players: seated.map(s => ({
         id: s.userId,
         username: s.username,
         displayName: s.displayName,
         seatIndex: s.seatIndex,
+        balance: s.balance,
       })),
       firstGame: isFirstGame,
       previousWinnerId: this.previousWinnerId,
@@ -358,6 +393,14 @@ export class Room {
             this.previousWinnerId = this.activeGame.finalResult.winners[0];
           } else {
             this.previousWinnerId = null;
+          }
+          // Sync seated member balances with DB
+          for (const s of this.seats) {
+            if (s) {
+              db.getUserById(s.userId).then(u => {
+                if (u && s) s.balance = u.balance;
+              }).catch(() => {});
+            }
           }
           this.scheduleAutoStartNextGame(3000);
         }
@@ -495,6 +538,7 @@ export class Room {
       code: this.code,
       name: this.name,
       mode: this.mode,
+      betAmount: this.betAmount,
       hasPassword: !!this.passwordHash,
       maxPlayers: this.maxPlayers,
       ownerId: this.ownerId,
@@ -554,12 +598,14 @@ export class RoomManager {
     mode: GameMode;
     password?: string;
     maxPlayers?: number;
+    betAmount?: number;
     owner: { id: string; username: string; displayName: string };
   }): Promise<Room> {
     const code = this.generateRoomCode();
     const id = `room_${code}_${Date.now()}`;
     const passwordHash = params.password ? await hashPassword(params.password) : null;
     const maxPlayers = params.maxPlayers || 4;
+    const betAmount = params.betAmount && params.betAmount >= 10 && params.betAmount % 10 === 0 ? params.betAmount : 10;
 
     const roomRow = await db.createRoom({
       id,
@@ -568,6 +614,7 @@ export class RoomManager {
       mode: params.mode,
       password_hash: passwordHash,
       max_players: maxPlayers,
+      bet_amount: betAmount,
       owner_id: params.owner.id,
     });
 
@@ -576,6 +623,7 @@ export class RoomManager {
       code,
       name: params.name,
       mode: params.mode,
+      betAmount,
       passwordHash,
       maxPlayers,
       ownerId: params.owner.id,
@@ -600,6 +648,7 @@ export class RoomManager {
       code: row.code,
       name: row.name,
       mode: row.mode as GameMode,
+      betAmount: row.bet_amount || 10,
       passwordHash: row.password_hash,
       maxPlayers: row.max_players,
       ownerId: row.owner_id,
@@ -627,6 +676,7 @@ export class RoomManager {
     name: string;
     mode: GameMode;
     maxPlayers: number;
+    betAmount: number;
     playerCount: number;
     hasPassword: boolean;
     isGameActive: boolean;
@@ -639,6 +689,7 @@ export class RoomManager {
         name: room.name,
         mode: room.mode,
         maxPlayers: room.maxPlayers,
+        betAmount: room.betAmount,
         playerCount,
         hasPassword: !!room.passwordHash,
         isGameActive: !!(room.activeGame && room.activeGame.phase === 'playing'),

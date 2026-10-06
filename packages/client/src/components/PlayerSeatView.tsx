@@ -14,6 +14,7 @@ interface PlayerSeatViewProps {
     isReady?: boolean;
     isOwner?: boolean | null;
     scoreText?: string;
+    balance?: number;
   } | null;
   seatIndex: number;
   turnDeadline?: number;
@@ -25,6 +26,7 @@ interface PlayerSeatViewProps {
   canKick?: boolean;
   onKick?: (userId: string) => void;
   chatBubbleText?: string | null;
+  onInspectPlayer?: (playerId: string, displayName: string, seatIndex: number) => void;
 }
 
 export const PlayerSeatView: React.FC<PlayerSeatViewProps> = ({
@@ -39,6 +41,7 @@ export const PlayerSeatView: React.FC<PlayerSeatViewProps> = ({
   canKick = false,
   onKick,
   chatBubbleText,
+  onInspectPlayer,
 }) => {
   const [timeLeft, setTimeLeft] = useState<number>(0);
 
@@ -111,7 +114,11 @@ export const PlayerSeatView: React.FC<PlayerSeatViewProps> = ({
         )}
 
         {/* Circular Avatar */}
-        <div className="relative">
+        <div
+          className={`relative ${onInspectPlayer ? 'cursor-pointer hover:scale-105 transition-transform' : ''}`}
+          onClick={() => onInspectPlayer && onInspectPlayer(player.id, player.displayName, player.seatIndex)}
+          title="Nhấn để xem số dư & lịch sử điểm"
+        >
           <div
             className={`w-11 h-11 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-full border-2 p-0.5 overflow-hidden shadow-lg transition-all ${
               player.isCurrentTurn
@@ -130,7 +137,7 @@ export const PlayerSeatView: React.FC<PlayerSeatViewProps> = ({
             </div>
           )}
 
-          {/* Turn timer circular badge (Matching Image 2 with countdown) */}
+          {/* Turn timer circular badge */}
           {player.isCurrentTurn && (
             <div className="absolute -top-1 -right-2 turn-timer-ring w-6 h-6 sm:w-7 sm:h-7 text-xs flex items-center justify-center z-20">
               {timeLeft}
@@ -139,10 +146,27 @@ export const PlayerSeatView: React.FC<PlayerSeatViewProps> = ({
         </div>
 
         {/* Name pill */}
-        <div className="bg-black/80 border border-amber-500/40 rounded-full px-2 py-0.5 mt-0.5 max-w-[85px] sm:max-w-[110px] text-center shadow">
+        <div
+          onClick={() => onInspectPlayer && onInspectPlayer(player.id, player.displayName, player.seatIndex)}
+          className={`bg-black/80 border border-amber-500/40 rounded-full px-2 py-0.5 mt-0.5 max-w-[85px] sm:max-w-[110px] text-center shadow ${
+            onInspectPlayer ? 'cursor-pointer hover:border-amber-400' : ''
+          }`}
+          title="Nhấn để xem thông tin & lịch sử"
+        >
           <div className="text-[10px] sm:text-xs font-bold text-white truncate font-display">
             {player.displayName}
           </div>
+        </div>
+
+        {/* Money Balance Badge */}
+        <div
+          onClick={() => onInspectPlayer && onInspectPlayer(player.id, player.displayName, player.seatIndex)}
+          className="mt-0.5 bg-gradient-to-r from-amber-950/90 to-yellow-950/90 border border-amber-400/70 rounded-full px-1.5 py-0.5 flex items-center justify-center gap-1 shadow cursor-pointer hover:border-yellow-300"
+          title="Số tiền hiện có (Nhấn xem lịch sử điểm)"
+        >
+          <span className="text-[10px] sm:text-[11px] font-black text-amber-300 font-mono tracking-tight">
+            💰 {(player.balance ?? 1000).toLocaleString()}$
+          </span>
         </div>
 
         {/* Score / Chips or Card Count badge under name */}

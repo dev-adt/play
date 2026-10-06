@@ -22,7 +22,11 @@ import {
   Eye,
   CheckCircle2,
   AlertOctagon,
-  Clock
+  Clock,
+  Coins,
+  Plus,
+  Minus,
+  DollarSign
 } from 'lucide-react';
 
 interface UserRecord {
@@ -32,6 +36,8 @@ interface UserRecord {
   createdAt: string;
   isGuest: boolean;
   isAdmin: boolean;
+  balance?: number;
+  loginStreak?: number;
   basic: {
     gamesPlayed: number;
     wins: number;
@@ -72,6 +78,58 @@ export const AdminModal: React.FC<AdminModalProps> = ({ onClose }) => {
   const [historyLoading, setHistoryLoading] = useState<boolean>(false);
   const [historyModeTab, setHistoryModeTab] = useState<'all' | 'basic' | 'fund'>('all');
   const [historyOutcomeTab, setHistoryOutcomeTab] = useState<'all' | 'win' | 'lose'>('all');
+
+  // Balance Adjustment Modal State
+  const [adjustUser, setAdjustUser] = useState<UserRecord | null>(null);
+  const [adjustAction, setAdjustAction] = useState<'add' | 'subtract' | 'set'>('add');
+  const [adjustAmount, setAdjustAmount] = useState<string>('1000');
+  const [adjustLoading, setAdjustLoading] = useState<boolean>(false);
+  const [adjustError, setAdjustError] = useState<string | null>(null);
+  const [adjustSuccess, setAdjustSuccess] = useState<string | null>(null);
+
+  const handleAdjustBalance = async () => {
+    if (!adjustUser) return;
+    const num = parseInt(adjustAmount.trim(), 10);
+    if (isNaN(num) || num < 0) {
+      setAdjustError('Vui lòng nhập số tiền hợp lệ (>= 0)');
+      return;
+    }
+    setAdjustLoading(true);
+    setAdjustError(null);
+    setAdjustSuccess(null);
+    try {
+      const res = await fetch(`/api/admin/users/${adjustUser.id}/adjust-balance`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token || localStorage.getItem('tienlen_token')}`,
+        },
+        body: JSON.stringify({
+          action: adjustAction,
+          amount: num,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Không thể cập nhật số dư');
+      }
+      const newBal = data.balance;
+      // Cập nhật danh sách users
+      setUsers(prev => prev.map(u => (u.id === adjustUser.id ? { ...u, balance: newBal } : u)));
+      if (selectedUser && selectedUser.id === adjustUser.id) {
+        setSelectedUser(prev => (prev ? { ...prev, balance: newBal } : null));
+      }
+      setAdjustSuccess(`Thành công! Số dư mới: ${newBal.toLocaleString()}$`);
+      setTimeout(() => {
+        setAdjustUser(null);
+        setAdjustSuccess(null);
+      }, 1000);
+    } catch (err: any) {
+      setAdjustError(err.message || 'Lỗi khi cập nhật số dư');
+    } finally {
+      setAdjustLoading(false);
+    }
+  };
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -282,7 +340,29 @@ export const AdminModal: React.FC<AdminModalProps> = ({ onClose }) => {
         {selectedUser ? (
           <div className="flex-1 flex flex-col overflow-hidden pt-4">
             {/* User Profile Summary Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-4">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 mb-4">
+              <div className="bg-slate-900/90 border border-amber-500/40 rounded-xl p-3">
+                <div className="text-xs text-slate-400 mb-1 flex items-center justify-between">
+                  <span>Số dư hiện tại</span>
+                  <Coins size={14} className="text-amber-400" />
+                </div>
+                <div className="text-xl font-black text-amber-300 font-display">
+                  💰 {(selectedUser.balance ?? 1000).toLocaleString()}$
+                </div>
+                <button
+                  onClick={() => {
+                    setAdjustUser(selectedUser);
+                    setAdjustAction('add');
+                    setAdjustAmount('1000');
+                    setAdjustError(null);
+                    setAdjustSuccess(null);
+                  }}
+                  className="mt-1 text-[11px] text-amber-400 hover:text-amber-200 underline font-bold flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus size={11} /> +/- Tiền
+                </button>
+              </div>
+
               <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3">
                 <div className="text-xs text-slate-400 mb-1 flex items-center justify-between">
                   <span>Tổng ván đấu</span>
@@ -662,6 +742,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({ onClose }) => {
                         <th className="py-2.5 px-3 text-center">Tỷ lệ thắng</th>
                         <th className="py-2.5 px-3 text-right">Chế độ Basic</th>
                         <th className="py-2.5 px-3 text-right">Chế độ Góp Quỹ</th>
+                        <th className="py-2.5 px-3 text-right">Số dư ($)</th>
                         <th className="py-2.5 px-3 text-center">Hành động</th>
                       </tr>
                     </thead>
@@ -764,19 +845,39 @@ export const AdminModal: React.FC<AdminModalProps> = ({ onClose }) => {
                               </div>
                             </td>
 
-                            {/* Action: View History */}
+                            {/* Balance ($) */}
+                            <td className="py-3 px-3 text-right">
+                              <span className="font-display font-black text-amber-300 text-sm">
+                                💰 {(userItem.balance ?? 1000).toLocaleString()}$
+                              </span>
+                            </td>
+
+                            {/* Action: View History & Adjust Balance */}
                             <td className="py-3 px-3 text-center">
-                              <button
-                                onClick={e => {
-                                  e.stopPropagation();
-                                  handleSelectUser(userItem);
-                                }}
-                                className="px-2.5 py-1.5 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 transition text-xs font-bold flex items-center gap-1 mx-auto"
-                                title="Xem toàn bộ lịch sử đấu của tài khoản này"
-                              >
-                                <Eye size={13} />
-                                <span>Xem Lịch Sử</span>
-                              </button>
+                              <div className="flex items-center justify-center gap-1.5" onClick={e => e.stopPropagation()}>
+                                <button
+                                  onClick={() => handleSelectUser(userItem)}
+                                  className="px-2 py-1 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 transition text-xs font-bold flex items-center gap-1 cursor-pointer"
+                                  title="Xem toàn bộ lịch sử đấu của tài khoản này"
+                                >
+                                  <Eye size={12} />
+                                  <span className="hidden sm:inline">Lịch Sử</span>
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setAdjustUser(userItem);
+                                    setAdjustAction('add');
+                                    setAdjustAmount('1000');
+                                    setAdjustError(null);
+                                    setAdjustSuccess(null);
+                                  }}
+                                  className="px-2 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/35 transition text-xs font-bold flex items-center gap-1 cursor-pointer"
+                                  title="Cộng/Trừ/Đặt số dư tiền tài khoản"
+                                >
+                                  <Coins size={12} />
+                                  <span>+/- $</span>
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -787,6 +888,125 @@ export const AdminModal: React.FC<AdminModalProps> = ({ onClose }) => {
               )}
             </div>
           </>
+        )}
+
+        {/* Adjust Balance Popup Modal */}
+        {adjustUser && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+            <div className="bg-slate-900 border-2 border-amber-500/50 rounded-2xl p-5 max-w-sm w-full shadow-2xl text-slate-100">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center font-black">
+                    $
+                  </div>
+                  <div>
+                    <h3 className="font-black text-amber-300 text-sm">Điều Chỉnh Tiền</h3>
+                    <p className="text-[11px] text-slate-400">@{adjustUser.username} ({adjustUser.displayName})</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setAdjustUser(null)}
+                  className="text-slate-400 hover:text-white"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {adjustError && (
+                <div className="bg-red-950/80 border border-red-500/50 text-red-200 text-xs p-2.5 rounded-xl mb-3 flex items-center gap-2">
+                  <AlertOctagon size={14} className="text-red-400 shrink-0" />
+                  <span>{adjustError}</span>
+                </div>
+              )}
+
+              {adjustSuccess && (
+                <div className="bg-emerald-950/80 border border-emerald-500/50 text-emerald-200 text-xs p-2.5 rounded-xl mb-3 flex items-center gap-2">
+                  <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
+                  <span>{adjustSuccess}</span>
+                </div>
+              )}
+
+              <div className="space-y-3.5">
+                <div>
+                  <div className="text-xs text-slate-400 mb-1">Số dư hiện tại</div>
+                  <div className="text-lg font-black text-amber-300 font-mono">
+                    💰 {(adjustUser.balance ?? 1000).toLocaleString()}$
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs text-slate-300 font-bold block mb-1.5">
+                    Hành động
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { action: 'add' as const, label: 'Cộng (+)' },
+                      { action: 'subtract' as const, label: 'Trừ (-)' },
+                      { action: 'set' as const, label: 'Đặt (=)' },
+                    ].map(btn => (
+                      <button
+                        key={btn.action}
+                        type="button"
+                        onClick={() => setAdjustAction(btn.action)}
+                        className={`py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                          adjustAction === btn.action
+                            ? 'bg-amber-500 text-slate-950 border-amber-400 shadow'
+                            : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-600'
+                        }`}
+                      >
+                        {btn.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs text-slate-300 font-bold block mb-1">
+                    Số tiền ($)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="10"
+                    value={adjustAmount}
+                    onChange={e => setAdjustAmount(e.target.value)}
+                    placeholder="Nhập số tiền..."
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-400 font-mono"
+                  />
+                  <div className="flex gap-1.5 mt-2">
+                    {[500, 1000, 5000, 10000].map(v => (
+                      <button
+                        key={v}
+                        type="button"
+                        onClick={() => setAdjustAmount(v.toString())}
+                        className="px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono border border-slate-700 cursor-pointer"
+                      >
+                        +{v.toLocaleString()}$
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setAdjustUser(null)}
+                    className="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition cursor-pointer"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAdjustBalance}
+                    disabled={adjustLoading}
+                    className="flex-1 btn-game-gold py-2 rounded-xl text-xs font-black shadow-lg transition cursor-pointer"
+                  >
+                    {adjustLoading ? 'Đang lưu...' : 'Xác Nhận'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Footer */}

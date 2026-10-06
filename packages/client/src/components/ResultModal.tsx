@@ -10,12 +10,14 @@ interface ResultModalProps {
     winners: string[];
     playerResults: any[];
     ledger: any[];
+    betAmount?: number;
   };
   players: { id: string; displayName: string; seatIndex: number }[];
   mode: 'basic' | 'fund';
   myUserId: string;
   onNextGame: () => void;
   autoStartTime?: number | null;
+  betAmount?: number;
 }
 
 export const ResultModal: React.FC<ResultModalProps> = ({
@@ -25,9 +27,11 @@ export const ResultModal: React.FC<ResultModalProps> = ({
   myUserId,
   onNextGame,
   autoStartTime,
+  betAmount: propBetAmount,
 }) => {
   const isWinner = result.winners.includes(myUserId);
   const [secondsLeft, setSecondsLeft] = useState<number>(3);
+  const effectiveBet = propBetAmount || result.betAmount || 10;
 
   useEffect(() => {
     const target = autoStartTime || Date.now() + 3000;
@@ -120,13 +124,13 @@ export const ResultModal: React.FC<ResultModalProps> = ({
 
   return (
     <div className="modal-overlay">
-      <div className="modal-content p-6 max-w-lg w-full text-slate-100">
+      <div className="modal-content p-6 max-w-lg w-full text-slate-100 border-2 border-amber-500/40 shadow-2xl bg-gradient-to-b from-[#241315] via-[#1a0f12] to-[#120a0d]">
         {/* Header Icon */}
         <div className="flex flex-col items-center text-center mb-5">
           <div
             className={`w-16 h-16 rounded-full flex items-center justify-center mb-3 shadow-lg ${
               isWinner
-                ? 'bg-gradient-to-br from-amber-400 to-amber-600 text-slate-950'
+                ? 'bg-gradient-to-br from-amber-400 to-amber-600 text-slate-950 ring-4 ring-amber-400/30'
                 : 'bg-slate-800 text-slate-300'
             }`}
           >
@@ -135,70 +139,80 @@ export const ResultModal: React.FC<ResultModalProps> = ({
           <h2 className="text-xl md:text-2xl font-black text-amber-400 font-display">
             {result.endReasonText}
           </h2>
-          <div className="text-xs text-slate-400 mt-1">
-            Chế độ chơi: <strong className="text-amber-300">{mode === 'basic' ? 'Basic (Điểm ròng)' : 'Góp quỹ (Điểm phạt)'}</strong>
+          <div className="flex items-center gap-3 text-xs text-slate-300 mt-1.5 font-medium">
+            <span>Chế độ: <strong className="text-amber-300">{mode === 'basic' ? 'Basic' : 'Góp quỹ'}</strong></span>
+            <span className="text-slate-500">•</span>
+            <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-bold">
+              Mức cược: {effectiveBet}$/điểm
+            </span>
           </div>
         </div>
 
         {/* Players Results Breakdown Table */}
-        <div className="bg-slate-900/90 rounded-xl overflow-hidden border border-slate-700 mb-6">
+        <div className="bg-black/50 rounded-xl overflow-hidden border border-amber-500/30 mb-5 shadow-inner">
           <table className="w-full text-left text-xs md:text-sm">
-            <thead className="bg-slate-800 text-amber-300 text-xs uppercase tracking-wider">
+            <thead className="bg-slate-900 text-amber-300 text-[11px] uppercase tracking-wider border-b border-amber-500/20">
               <tr>
                 <th className="py-2.5 px-3">Người chơi</th>
-                <th className="py-2.5 px-3 text-center">Kết quả</th>
-                <th className="py-2.5 px-3 text-right">Biến động điểm</th>
+                <th className="py-2.5 px-2 text-center">Kết quả</th>
+                <th className="py-2.5 px-2 text-right">Điểm</th>
+                <th className="py-2.5 px-3 text-right">Tiền ($)</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800">
+            <tbody className="divide-y divide-slate-800/80">
               {result.playerResults.map(pr => {
                 const player = players.find(p => p.id === pr.playerId);
                 const isMe = pr.playerId === myUserId;
                 const won = pr.isWinner;
+                const moneyDelta = pr.moneyDelta !== undefined ? pr.moneyDelta : pr.scoreDelta * effectiveBet;
 
                 return (
                   <tr
                     key={pr.playerId}
-                    className={`${isMe ? 'bg-amber-950/20 font-bold' : ''} hover:bg-slate-800/40`}
+                    className={`${isMe ? 'bg-amber-950/30 font-bold' : ''} hover:bg-white/5`}
                   >
-                    <td className="py-3 px-3">
+                    <td className="py-2.5 px-3">
                       <div className="flex items-center gap-1.5">
                         <span className="text-white">
                           {player?.displayName || 'Người chơi'} {isMe && '(Bạn)'}
                         </span>
                       </div>
                       {pr.handEvaluation && pr.handEvaluation.groups?.length > 0 && (
-                        <div className="text-[11px] text-slate-400 mt-0.5">
+                        <div className="text-[10px] text-slate-400 mt-0.5">
                           {pr.handEvaluation.isCong ? 'Cóng! ' : ''}
                           Thối: {pr.handEvaluation.groups.map((g: any) => `${g.name} (${g.score})`).join(', ')}
                         </div>
                       )}
                     </td>
-                    <td className="py-3 px-3 text-center">
+                    <td className="py-2.5 px-2 text-center">
                       {won ? (
-                        <span className="bg-emerald-950 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full text-xs font-bold">
+                        <span className="bg-emerald-950 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full text-[11px] font-bold">
                           Thắng
                         </span>
                       ) : (
                         <span className="text-slate-400 text-xs">Thua</span>
                       )}
                     </td>
-                    <td className="py-3 px-3 text-right font-display text-sm md:text-base font-black">
-                      {mode === 'basic' ? (
-                        pr.scoreDelta > 0 ? (
-                          <span className="text-emerald-400">+{pr.scoreDelta}</span>
-                        ) : pr.scoreDelta < 0 ? (
-                          <span className="text-red-400">{pr.scoreDelta}</span>
-                        ) : (
-                          <span className="text-slate-400">0</span>
-                        )
+                    <td className="py-2.5 px-2 text-right font-display text-xs md:text-sm font-bold">
+                      {pr.scoreDelta > 0 ? (
+                        <span className="text-emerald-400">+{pr.scoreDelta}</span>
+                      ) : pr.scoreDelta < 0 ? (
+                        <span className="text-red-400">{pr.scoreDelta}</span>
                       ) : (
-                        // Góp quỹ: accumulated negative score
-                        pr.scoreDelta < 0 ? (
-                          <span className="text-red-400">{pr.scoreDelta}</span>
-                        ) : (
-                          <span className="text-emerald-400">0</span>
-                        )
+                        <span className="text-slate-400">0</span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-display text-xs md:text-sm font-black">
+                      {moneyDelta > 0 ? (
+                        <span className="text-yellow-400 drop-shadow">
+                          +{moneyDelta.toLocaleString()}$
+                        </span>
+                      ) : moneyDelta < 0 ? (
+                        <span className="text-red-400">
+                          {moneyDelta.toLocaleString()}$
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">0$</span>
                       )}
                     </td>
                   </tr>

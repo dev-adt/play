@@ -27,6 +27,7 @@ export interface GamePlayer {
   id: string;
   username: string;
   displayName: string;
+  balance: number;
   seatIndex: number;
   hand: Card[];
   hasPlayedCard: boolean;
@@ -48,6 +49,7 @@ export interface GameStateClientView {
   gameId: string;
   roomId: string;
   mode: GameMode;
+  betAmount: number;
   phase: 'dealing' | 'playing' | 'ended';
   stateVersion: number;
   mySeatIndex: number;
@@ -61,6 +63,7 @@ export interface GameStateClientView {
   players: {
     id: string;
     displayName: string;
+    balance: number;
     seatIndex: number;
     cardCount: number;
     hasPassed: boolean;
@@ -82,6 +85,7 @@ export class GameInstance {
   public id: string;
   public roomId: string;
   public mode: GameMode;
+  public betAmount: number = 10;
   public phase: 'dealing' | 'playing' | 'ended' = 'dealing';
   public stateVersion: number = 1;
   public players: GamePlayer[] = [];
@@ -115,7 +119,8 @@ export class GameInstance {
     id: string;
     roomId: string;
     mode: GameMode;
-    players: { id: string; username: string; displayName: string; seatIndex: number }[];
+    betAmount?: number;
+    players: { id: string; username: string; displayName: string; seatIndex: number; balance?: number }[];
     firstGame?: boolean;
     previousWinnerId?: string | null;
     onStateChange: () => void;
@@ -124,6 +129,7 @@ export class GameInstance {
     this.id = options.id;
     this.roomId = options.roomId;
     this.mode = options.mode;
+    this.betAmount = options.betAmount || 10;
     this.firstGame = options.firstGame || false;
     this.previousWinnerId = options.previousWinnerId || null;
     this.onStateChange = options.onStateChange;
@@ -131,6 +137,7 @@ export class GameInstance {
 
     this.players = options.players.map(p => ({
       ...p,
+      balance: p.balance !== undefined ? p.balance : 1000,
       hand: [],
       hasPlayedCard: false,
       hasPassed: false,
@@ -542,6 +549,11 @@ export class GameInstance {
       gameId: this.id,
     });
 
+    // Calculate money delta: Điểm x Mức cược
+    for (const r of settlement.results) {
+      r.moneyDelta = r.scoreDelta * this.betAmount;
+    }
+
     this.finalResult = {
       endReason: options.endReason,
       endReasonText: options.endReasonText,
@@ -549,6 +561,17 @@ export class GameInstance {
       playerResults: settlement.results,
       ledger: [...this.priorChopEntries, ...settlement.ledger],
     };
+
+    // Update balances in Database and memory
+    for (const r of settlement.results) {
+      try {
+        const newBal = await db.updateUserBalance(r.playerId, r.moneyDelta || 0);
+        const p = this.players.find(pl => pl.id === r.playerId);
+        if (p) p.balance = newBal;
+      } catch (err) {
+        console.error('Error updating player balance:', err);
+      }
+    }
 
     // Save to Database asynchronously
     try {
@@ -597,6 +620,7 @@ export class GameInstance {
       gameId: this.id,
       roomId: this.roomId,
       mode: this.mode,
+      betAmount: this.betAmount,
       phase: this.phase,
       stateVersion: this.stateVersion,
       mySeatIndex: mySeat,
@@ -610,6 +634,7 @@ export class GameInstance {
       players: this.players.map(p => ({
         id: p.id,
         displayName: p.displayName,
+        balance: p.balance !== undefined ? p.balance : 1000,
         seatIndex: p.seatIndex,
         cardCount: p.hand.length,
         hasPassed: p.hasPassed,

@@ -95,4 +95,5 @@ export interface PlayerGameResult {
   handEvaluation?: PlayerHandEvaluation;
   chopScoreDelta: number;
   settlementScoreDelta: number;
+  moneyDelta?: number;
 }

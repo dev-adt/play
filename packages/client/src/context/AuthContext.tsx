@@ -4,6 +4,7 @@ export interface User {
   userId: string;
   username: string;
   displayName: string;
+  balance?: number;
   isAdmin?: boolean;
 }
 
@@ -30,6 +31,7 @@ interface AuthContextType {
   guestLogin: (displayName?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   refreshStats: () => Promise<void>;
+  updateBalance: (newBalance: number) => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -42,8 +44,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const formatUser = (u: any): User => ({
     ...u,
+    balance: u?.balance !== undefined ? Number(u.balance) : 1000,
     isAdmin: !!(u?.isAdmin || u?.username?.toLowerCase() === 'admin'),
   });
+
+  const updateBalance = (newBalance: number) => {
+    setUser(prev => (prev ? { ...prev, balance: newBalance } : null));
+  };
 
   const refreshStats = async () => {
     const activeToken = token || localStorage.getItem('tienlen_token');
@@ -163,7 +170,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider
-      value={{ user, token, stats, isLoading, login, register, guestLogin, logout, refreshStats }}
+      value={{ user, token, stats, isLoading, login, register, guestLogin, logout, refreshStats, updateBalance }}
     >
       {children}
     </AuthContext.Provider>

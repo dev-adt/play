@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { PlusCircle, X, Shield, Users, Layers, AlertCircle, Sparkles, Check } from 'lucide-react';
+import { PlusCircle, X, Shield, Users, Layers, AlertCircle, Sparkles, Check, Coins } from 'lucide-react';
 
 interface CreateRoomModalProps {
   onClose: () => void;
@@ -13,12 +13,21 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onRoo
   const [mode, setMode] = useState<'basic' | 'fund'>('basic');
   const [password, setPassword] = useState('');
   const [maxPlayers, setMaxPlayers] = useState<2 | 3 | 4>(4);
+  const [betAmount, setBetAmount] = useState<number>(10);
+  const [customBet, setCustomBet] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) return;
+
+    const finalBet = customBet.trim() ? parseInt(customBet.trim(), 10) : betAmount;
+    if (isNaN(finalBet) || finalBet < 10 || finalBet % 10 !== 0) {
+      setError('Mức cược phải là bội số của 10 và tối thiểu là 10$ (ví dụ: 10, 20, 50, 100, 200...)');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -34,6 +43,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onRoo
           mode,
           password: password.trim() || undefined,
           maxPlayers,
+          betAmount: finalBet,
         }),
       });
 
@@ -179,6 +189,49 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ onClose, onRoo
                   </span>
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Bet Amount Selection */}
+          <div>
+            <label className="block text-xs font-bold text-amber-200/90 mb-1.5 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Coins size={14} className="text-amber-400" /> Mức cược ($/điểm)
+              </span>
+              <span className="text-[10px] text-amber-300 font-normal">
+                Tối thiểu 10$, bội số của 10
+              </span>
+            </label>
+            <div className="grid grid-cols-4 gap-2 mb-2">
+              {[10, 20, 50, 100].map(val => (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => {
+                    setBetAmount(val);
+                    setCustomBet('');
+                  }}
+                  className={`py-2 rounded-xl border-2 text-center text-xs font-black transition ${
+                    !customBet && betAmount === val
+                      ? 'border-amber-400 bg-amber-500/25 text-amber-200 shadow-[0_0_10px_rgba(251,191,36,0.25)]'
+                      : 'border-slate-700/60 bg-black/40 text-slate-300 hover:border-slate-500'
+                  }`}
+                >
+                  {val}$
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                step="10"
+                min="10"
+                value={customBet}
+                onChange={e => setCustomBet(e.target.value)}
+                placeholder="Hoặc nhập mức cược tùy chọn (ví dụ: 150, 200, 500)..."
+                className="w-full bg-black/50 border border-amber-500/30 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-400 font-medium placeholder:text-slate-500"
+              />
+              <span className="text-amber-400 font-black text-sm px-1">$</span>
             </div>
           </div>
 

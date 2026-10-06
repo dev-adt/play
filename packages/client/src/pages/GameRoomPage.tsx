@@ -27,6 +27,7 @@ import {
 import { RulesModal } from '../components/RulesModal';
 import { HistoryModal } from '../components/HistoryModal';
 import { RoomChatModal } from '../components/RoomChatModal';
+import { PlayerInfoModal } from '../components/PlayerInfoModal';
 
 interface GameRoomPageProps {
   roomCode: string;
@@ -57,6 +58,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
   const [chatBubbles, setChatBubbles] = useState<Record<string, { text: string; expiresAt: number }>>({});
   const [isMuted, setIsMuted] = useState(sounds.isMuted);
   const [isThrowingCards, setIsThrowingCards] = useState(false);
+  const [inspectPlayer, setInspectPlayer] = useState<{ id: string; displayName: string; seatIndex?: number } | null>(null);
 
   const unreadChatCount = showChat ? 0 : Math.max(0, roomChats.length - lastReadChatCount);
 
@@ -193,15 +195,16 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
 
   const getPlayerAtSeat = (seatIdx: number) => {
     if (seatIdx < 0 || seatIdx >= maxPlayers) return null;
+    const mem = seatedMembers[seatIdx];
     if (isGameActive) {
       const gp = allGamePlayers.find(p => p.seatIndex === seatIdx);
       if (gp) {
         return {
           ...gp,
+          balance: gp.balance ?? mem?.balance ?? 1000,
           isOwner: gp.id === roomState.ownerId,
         };
       }
-      const mem = seatedMembers[seatIdx];
       if (mem) {
         return {
           id: mem.userId,
@@ -214,11 +217,11 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
           isReady: true,
           isOwner: mem.userId === roomState.ownerId,
           scoreText: 'Chờ ván sau',
+          balance: mem.balance ?? 1000,
         };
       }
       return null;
     }
-    const mem = seatedMembers[seatIdx];
     if (!mem) return null;
     return {
       id: mem.userId,
@@ -230,6 +233,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
       isCurrentTurn: false,
       isReady: mem.isReady,
       isOwner: mem.userId === roomState.ownerId,
+      balance: mem.balance ?? 1000,
     };
   };
 
@@ -237,7 +241,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
   const leftPlayer = leftSeatIdx !== -1 ? getPlayerAtSeat(leftSeatIdx) : null;
   const rightPlayer = rightSeatIdx !== -1 ? getPlayerAtSeat(rightSeatIdx) : null;
   const bottomPlayer = isGameActive
-    ? (myGamePlayer ? { ...myGamePlayer, isOwner: !!isOwner } : (myMember ? {
+    ? (myGamePlayer ? { ...myGamePlayer, balance: myGamePlayer.balance ?? myMember?.balance ?? user?.balance ?? 1000, isOwner: !!isOwner } : (myMember ? {
         id: myMember.userId,
         displayName: myMember.displayName,
         seatIndex: myMember.seatIndex,
@@ -248,6 +252,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
         isReady: true,
         isOwner: !!isOwner,
         scoreText: 'Ghế chờ ván sau',
+        balance: myMember.balance ?? user?.balance ?? 1000,
       } : null))
     : myMember
     ? {
@@ -260,6 +265,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
         isCurrentTurn: false,
         isReady: myMember.isReady,
         isOwner: !!isOwner,
+        balance: myMember.balance ?? user?.balance ?? 1000,
       }
     : null;
 
@@ -408,10 +414,14 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
 
           {/* Table info pill */}
           <div className="bg-black/75 border border-amber-500/30 rounded-xl px-2.5 sm:px-3 py-0.5 sm:py-1 text-xs shadow">
-            <div className="font-extrabold text-amber-300 font-display flex items-center gap-1 text-[11px] sm:text-xs">
+            <div className="font-extrabold text-amber-300 font-display flex items-center gap-1.5 text-[11px] sm:text-xs">
               <span>{roomState.mode === 'fund' ? 'Góp quỹ' : 'Basic'}</span>
               <span>·</span>
               <span>Bàn: {roomState.code}</span>
+              <span>·</span>
+              <span className="text-yellow-300 bg-amber-500/20 px-1.5 py-0.2 rounded border border-amber-500/40 font-mono">
+                Cược: {roomState.betAmount || 10}$
+              </span>
             </div>
             <div className="text-[10px] sm:text-[11px] text-slate-300 flex items-center gap-2">
               <span className="truncate max-w-[90px] sm:max-w-none">{roomState.name}</span>
@@ -476,6 +486,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
                 canKick={!!isOwner && topPlayer !== null && topPlayer.id !== user?.userId}
                 onKick={kickPlayer}
                 chatBubbleText={topPlayer ? chatBubbles[topPlayer.id]?.text : null}
+                onInspectPlayer={(id, name) => setInspectPlayer({ id, displayName: name })}
               />
             </div>
           )}
@@ -495,6 +506,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
                 canKick={!!isOwner && leftPlayer !== null && leftPlayer.id !== user?.userId}
                 onKick={kickPlayer}
                 chatBubbleText={leftPlayer ? chatBubbles[leftPlayer.id]?.text : null}
+                onInspectPlayer={(id, name) => setInspectPlayer({ id, displayName: name })}
               />
             </div>
           )}
@@ -552,6 +564,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
                 canKick={!!isOwner && rightPlayer !== null && rightPlayer.id !== user?.userId}
                 onKick={kickPlayer}
                 chatBubbleText={rightPlayer ? chatBubbles[rightPlayer.id]?.text : null}
+                onInspectPlayer={(id, name) => setInspectPlayer({ id, displayName: name })}
               />
             </div>
           )}
@@ -572,6 +585,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
             isLobby={!isGameActive}
             onTakeSeat={takeSeat}
             chatBubbleText={bottomPlayer ? chatBubbles[bottomPlayer.id]?.text : null}
+            onInspectPlayer={(id, name) => setInspectPlayer({ id, displayName: name })}
           />
         </div>
 
@@ -684,6 +698,17 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
           myUserId={user.userId}
           onNextGame={nextGame}
           autoStartTime={roomState.nextGameAutoStartTime}
+          betAmount={roomState.betAmount}
+        />
+      )}
+
+      {/* Player Info & Score History Modal */}
+      {inspectPlayer && (
+        <PlayerInfoModal
+          userId={inspectPlayer.id}
+          displayName={inspectPlayer.displayName}
+          seatIndex={inspectPlayer.seatIndex}
+          onClose={() => setInspectPlayer(null)}
         />
       )}
     </div>
