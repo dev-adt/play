@@ -609,6 +609,8 @@ export function createServer() {
       time: new Date().toISOString(),
       service: 'tienlen-server',
       domain: config.appOrigin,
+      databaseType: db.dbType,
+      isMysql: db.dbType === 'mysql',
     });
   });
 

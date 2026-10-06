@@ -69,7 +69,7 @@ SESSION_SECRET=<chuoi_bi_mat_ngau_nhien_32_bytes>
 # Chuỗi kết nối tới MySQL aaPanel của bạn
 DATABASE_URL=mysql://<db_user>:<db_password>@host.docker.internal:3306/<db_name>
 
-TURN_TIMEOUT_SECONDS=30
+TURN_TIMEOUT_SECONDS=15
 ```
 
 > **Lưu ý an toàn:** File `.env` chứa mật khẩu thực tế sẽ nằm trên VPS của bạn và đã được đưa vào `.gitignore` để không bao giờ bị lộ lên Git.
@@ -85,15 +85,23 @@ Kiểm tra container đang chạy:
 docker compose ps
 ```
 
-Kiểm tra healthcheck nội bộ xem ứng dụng đã sẵn sàng trên cổng 3027 chưa:
+Kiểm tra healthcheck nội bộ xem ứng dụng đã sẵn sàng trên cổng 3027 và đã kết nối trúng MySQL chưa:
 ```bash
 curl http://127.0.0.1:3027/api/health
 ```
-Kết quả trả về JSON dạng:
+Kết quả trả về JSON:
 ```json
-{"status":"ok","time":"...","service":"tienlen-server","domain":"https://play.edunow.today"}
+{
+  "status": "ok",
+  "time": "2026-10-06T...",
+  "service": "tienlen-server",
+  "domain": "https://play.edunow.today",
+  "databaseType": "mysql",
+  "isMysql": true
+}
 ```
-Hệ thống sẽ tự động khởi tạo toàn bộ bảng database (`users`, `rooms`, `games`, `game_events`, `score_ledger`, `game_results`, `player_mode_stats`) trong database của bạn.
+> ⚠️ **Lưu ý quan trọng**: Nếu thấy `"databaseType": "local"` và `"isMysql": false`, có nghĩa là MySQL trên aaPanel đang chặn Docker (do Permission) hoặc thông tin `.env` chưa đúng. Hãy xem mục **Xử lý sự cố Database** bên dưới. Hệ thống cũng đã bật cơ chế volume `./data:/app/data` lưu bền vững trên ổ cứng VPS để đảm bảo không bị mất dữ liệu kể cả khi chạy chế độ local.
+
 
 ---
 
@@ -175,4 +183,30 @@ cd /www/wwwroot/play.edunow.today
 git pull origin master
 docker compose up -d --build
 ```
-Dữ liệu nằm an toàn trong MySQL trên aaPanel nên khi build lại container app sẽ không bao giờ bị mất tài khoản hay lịch sử ván đấu.
+Dữ liệu nằm an toàn trong MySQL trên aaPanel và thư mục persistent volume `./data` nên khi build lại container app sẽ không bao giờ bị mất tài khoản hay tiền/lịch sử ván đấu.
+
+---
+
+## 6. Khắc phục triệt để vấn đề "Mất dữ liệu khi update/rebuild"
+
+Nếu trước đây mỗi lần chạy `docker compose up -d --build` bạn bị mất hết tài khoản & tiền:
+1. **Nguyên nhân**:
+   - Khi tạo database trên aaPanel, mặc định cột **Permission** được đặt là `Local server` (`127.0.0.1`).
+   - Ứng dụng chạy trong Docker container có IP riêng thuộc dải bridge (`172.17.x.x`), nên khi kết nối tới host qua `host.docker.internal:3306` bị MySQL **từ chối truy cập** (`Access denied`).
+   - Khi không kết nối được MySQL, ứng dụng tự động fallback về lưu tạm trong container (`data_local.json`). Khi chạy lệnh rebuild container, toàn bộ dữ liệu nằm trong container cũ bị xóa mất.
+
+2. **Cách xử lý triệt để 100%**:
+   - **Bước 1**: Đăng nhập **aaPanel** $\to$ vào menu **Databases**.
+   - **Bước 2**: Tại dòng database của game, nhìn sang cột **Permission** (Quyền hạn), bấm vào chữ `Local server`.
+   - **Bước 3**: Chọn **`Everyone`** (hoặc chọn `Specified IP` và nhập `172.%.%.%`) rồi bấm **Confirm**.
+   - **Bước 4**: Kiểm tra file `.env` trên VPS đảm bảo `DATABASE_URL` chính xác:
+     ```env
+     DATABASE_URL=mysql://<user>:<password>@host.docker.internal:3306/<database>
+     ```
+   - **Bước 5**: Chạy `docker compose up -d --build` và kiểm tra lại bằng:
+     ```bash
+     curl http://127.0.0.1:3027/api/health
+     ```
+     Nếu thấy `"isMysql": true` là thành công mỹ mãn!
+   - **Cơ chế bảo hiểm kép**: Bản cập nhật mới đã tích hợp `volumes: - ./data:/app/data` trong `docker-compose.yml`, kể cả trong trường hợp xấu nhất MySQL chưa kết nối được thì file dữ liệu cục bộ cũng được lưu vĩnh viễn trên ổ cứng VPS của bạn chứ không nằm trong container.
+

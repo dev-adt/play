@@ -19,6 +19,7 @@ interface PlayerSeatViewProps {
   seatIndex: number;
   turnDeadline?: number;
   turnTimeoutSeconds?: number;
+  serverTime?: number;
   isPendingDut3Bich?: boolean;
   position: 'top' | 'left' | 'right' | 'bottom';
   isLobby?: boolean;
@@ -38,6 +39,7 @@ export const PlayerSeatView: React.FC<PlayerSeatViewProps> = ({
   seatIndex,
   turnDeadline = 0,
   turnTimeoutSeconds = 15,
+  serverTime,
   isPendingDut3Bich = false,
   position,
   isLobby = false,
@@ -59,13 +61,32 @@ export const PlayerSeatView: React.FC<PlayerSeatViewProps> = ({
       return;
     }
 
+    const maxSec = turnTimeoutSeconds > 0 ? turnTimeoutSeconds : 15;
+    let initialRemaining = maxSec;
+
+    if (serverTime && turnDeadline > 0) {
+      const serverDiff = Math.ceil((turnDeadline - serverTime) / 1000);
+      initialRemaining = Math.min(maxSec, Math.max(0, serverDiff));
+    } else {
+      const clientDiff = Math.ceil((turnDeadline - Date.now()) / 1000);
+      if (clientDiff > maxSec || clientDiff < 0) {
+        initialRemaining = maxSec;
+      } else {
+        initialRemaining = clientDiff;
+      }
+    }
+
+    setTimeLeft(initialRemaining);
+    const startTimestamp = Date.now();
+
     const interval = setInterval(() => {
-      const remaining = Math.max(0, Math.ceil((turnDeadline - Date.now()) / 1000));
+      const elapsedSeconds = Math.floor((Date.now() - startTimestamp) / 1000);
+      const remaining = Math.max(0, initialRemaining - elapsedSeconds);
       setTimeLeft(remaining);
-    }, 200);
+    }, 250);
 
     return () => clearInterval(interval);
-  }, [player?.isCurrentTurn, turnDeadline]);
+  }, [player?.isCurrentTurn, turnDeadline, turnTimeoutSeconds, serverTime]);
 
   // If seat is empty: show attractive "Ngồi ghế" button
   if (!player) {
@@ -185,7 +206,11 @@ export const PlayerSeatView: React.FC<PlayerSeatViewProps> = ({
 
           {/* Turn timer circular badge */}
           {player.isCurrentTurn && (
-            <div className="absolute -top-1 -right-2 turn-timer-ring w-6 h-6 sm:w-7 sm:h-7 text-xs flex items-center justify-center z-20">
+            <div
+              className={`absolute -top-1 -right-2 turn-timer-ring w-6 h-6 sm:w-7 sm:h-7 text-xs flex items-center justify-center z-20 ${
+                timeLeft <= 5 ? 'warning' : ''
+              }`}
+            >
               {timeLeft}
             </div>
           )}

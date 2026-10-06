@@ -180,12 +180,43 @@ html, body {
   font-size: 0.9rem;
   box-shadow: 0 0 12px var(--gold-glow);
   animation: pulseGold 1.5s infinite;
+  transition: all 0.2s ease;
+}
+
+.turn-timer-ring.warning {
+  background: #7f1d1d !important;
+  border-color: #ef4444 !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 18px rgba(239, 68, 68, 0.9) !important;
+  animation: pulseRed 0.8s infinite !important;
 }
 
 @keyframes pulseGold {
   0% { box-shadow: 0 0 0 0 rgba(245, 176, 65, 0.7); }
   70% { box-shadow: 0 0 0 10px rgba(245, 176, 65, 0); }
   100% { box-shadow: 0 0 0 0 rgba(245, 176, 65, 0); }
+}
+
+@keyframes pulseRed {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.9); transform: scale(1); }
+  50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); transform: scale(1.1); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); transform: scale(1); }
+}
+
+/* 5s Turn Warning Red Screen Edge Vignette */
+@keyframes screenRedPulse {
+  0%, 100% {
+    box-shadow: inset 0 0 35px rgba(239, 68, 68, 0.45), 0 0 15px rgba(239, 68, 68, 0.3);
+    border-color: rgba(239, 68, 68, 0.75);
+  }
+  50% {
+    box-shadow: inset 0 0 75px rgba(239, 68, 68, 0.8), 0 0 30px rgba(239, 68, 68, 0.6);
+    border-color: rgba(239, 68, 68, 1);
+  }
+}
+
+.turn-screen-alert {
+  animation: screenRedPulse 1s ease-in-out infinite;
 }
 
 /* Modals */

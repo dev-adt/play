@@ -18,6 +18,8 @@ services:
       CLIENT_DIST_PATH: /app/packages/client/dist
     ports:
       - "127.0.0.1:3027:3027"
+    volumes:
+      - ./data:/app/data
     healthcheck:
       test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3027/api/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))\""]
       interval: 30s

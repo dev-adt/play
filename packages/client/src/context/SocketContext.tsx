@@ -36,6 +36,7 @@ export interface RoomClientView {
     currentTurnSeat: number;
     turnDeadline: number;
     turnTimeoutSeconds: number;
+    serverTime?: number;
     currentCombo: any | null;
     currentComboPlayerId: string | null;
     pendingDut3BichPlayerId: string | null;

@@ -57,6 +57,7 @@ export interface GameStateClientView {
   currentTurnSeat: number;
   turnDeadline: number;
   turnTimeoutSeconds: number;
+  serverTime?: number;
   currentCombo: Combination | null;
   currentComboPlayerId: string | null;
   pendingDut3BichPlayerId: string | null;
@@ -628,6 +629,7 @@ export class GameInstance {
       currentTurnSeat: currentP ? currentP.seatIndex : 0,
       turnDeadline: this.turnDeadline,
       turnTimeoutSeconds: this.config.turnTimeoutSeconds,
+      serverTime: Date.now(),
       currentCombo: this.currentCombo,
       currentComboPlayerId: this.currentComboPlayerId,
       pendingDut3BichPlayerId: this.pendingDut3BichPlayerId,

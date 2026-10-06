@@ -82,6 +82,61 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
   const [isSortingHand, setIsSortingHand] = useState(false);
   const [lastDealtGameId, setLastDealtGameId] = useState<string | null>(null);
 
+  // 5-second Turn Warning countdown state
+  const [myTurnTimeLeft, setMyTurnTimeLeft] = useState<number>(0);
+
+  useEffect(() => {
+    const gs = roomState?.gameState;
+    const isPlaying = !!roomState?.isGameActive && gs?.phase === 'playing';
+    const mySeat = roomState?.mySeatIndex ?? -1;
+    const myPlayer = gs?.players?.find(p => p.seatIndex === mySeat);
+    const isCurrentMyTurn = !!(myPlayer && myPlayer.isCurrentTurn && isPlaying);
+
+    if (!isCurrentMyTurn || !gs?.turnDeadline) {
+      setMyTurnTimeLeft(0);
+      return;
+    }
+
+    const maxSec = gs.turnTimeoutSeconds > 0 ? gs.turnTimeoutSeconds : 15;
+    let initialRemaining = maxSec;
+
+    if (gs.serverTime && gs.turnDeadline > 0) {
+      const serverDiff = Math.ceil((gs.turnDeadline - gs.serverTime) / 1000);
+      initialRemaining = Math.min(maxSec, Math.max(0, serverDiff));
+    } else {
+      const clientDiff = Math.ceil((gs.turnDeadline - Date.now()) / 1000);
+      if (clientDiff > maxSec || clientDiff < 0) {
+        initialRemaining = maxSec;
+      } else {
+        initialRemaining = clientDiff;
+      }
+    }
+
+    setMyTurnTimeLeft(initialRemaining);
+    const startTimestamp = Date.now();
+
+    const interval = setInterval(() => {
+      const elapsedSeconds = Math.floor((Date.now() - startTimestamp) / 1000);
+      const remaining = Math.max(0, initialRemaining - elapsedSeconds);
+      setMyTurnTimeLeft(remaining);
+      if (remaining <= 5 && remaining > 0) {
+        sounds.playTick();
+      }
+    }, 250);
+
+    return () => clearInterval(interval);
+  }, [
+    roomState?.isGameActive,
+    roomState?.mySeatIndex,
+    roomState?.gameState?.gameId,
+    roomState?.gameState?.stateVersion,
+    roomState?.gameState?.phase,
+    roomState?.gameState?.turnDeadline,
+    roomState?.gameState?.turnTimeoutSeconds,
+    roomState?.gameState?.serverTime,
+    roomState?.gameState?.players,
+  ]);
+
   // Trigger dealing animation when new round/game starts
   useEffect(() => {
     const currentGameId = roomState?.gameState?.gameId;
@@ -426,6 +481,16 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
 
   return (
     <div className="w-full h-full max-h-[100dvh] flex-1 flex flex-col justify-between bg-[#0b0708] relative overflow-hidden select-none p-1 sm:p-2 md:p-4">
+      {/* 5-second Turn Timeout Alert Red Screen Border (Viền đỏ cảnh báo đến lượt đánh) */}
+      {isMyTurn && isGameActive && myTurnTimeLeft <= 5 && myTurnTimeLeft > 0 && (
+        <div className="pointer-events-none fixed inset-0 z-50 border-[5px] sm:border-[8px] border-red-500/85 turn-screen-alert transition-all">
+          <div className="absolute top-16 left-1/2 -translate-x-1/2 bg-red-600/95 text-white font-black text-xs sm:text-sm px-4 py-1.5 rounded-full border-2 border-red-300 shadow-2xl flex items-center gap-2 animate-bounce">
+            <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />
+            <span>Đến lượt bạn đánh! Còn {myTurnTimeLeft}s</span>
+          </div>
+        </div>
+      )}
+
       {/* 1. TOP BAR (Matching Image 2 Reference Layout) */}
       <div className="w-full flex items-center justify-between z-40 mb-1 md:mb-2 px-1 sm:px-2 py-0.5 sm:py-1">
         {/* Top Left: Exit, Menu & Table info pill */}
@@ -579,6 +644,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
                 seatIndex={topSeatIdx}
                 turnDeadline={gameState?.turnDeadline}
                 turnTimeoutSeconds={gameState?.turnTimeoutSeconds}
+                serverTime={gameState?.serverTime}
                 isPendingDut3Bich={gameState?.pendingDut3BichPlayerId === topPlayer?.id}
                 position="top"
                 isLobby={!isGameActive}
@@ -603,6 +669,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
                 seatIndex={leftSeatIdx}
                 turnDeadline={gameState?.turnDeadline}
                 turnTimeoutSeconds={gameState?.turnTimeoutSeconds}
+                serverTime={gameState?.serverTime}
                 isPendingDut3Bich={gameState?.pendingDut3BichPlayerId === leftPlayer?.id}
                 position="left"
                 isLobby={!isGameActive}
@@ -689,6 +756,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
                 seatIndex={rightSeatIdx}
                 turnDeadline={gameState?.turnDeadline}
                 turnTimeoutSeconds={gameState?.turnTimeoutSeconds}
+                serverTime={gameState?.serverTime}
                 isPendingDut3Bich={gameState?.pendingDut3BichPlayerId === rightPlayer?.id}
                 position="right"
                 isLobby={!isGameActive}
@@ -716,6 +784,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
             seatIndex={bottomSeatIdx}
             turnDeadline={gameState?.turnDeadline}
             turnTimeoutSeconds={gameState?.turnTimeoutSeconds}
+            serverTime={gameState?.serverTime}
             isPendingDut3Bich={gameState?.pendingDut3BichPlayerId === bottomPlayer?.id}
             position="bottom"
             isLobby={!isGameActive}

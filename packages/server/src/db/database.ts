@@ -97,7 +97,7 @@ function getYesterdayDateStr(): string {
 class DatabaseAdapter {
   private pgPool: pg.Pool | null = null;
   private mysqlPool: mysql.Pool | null = null;
-  private dbType: 'pg' | 'mysql' | 'local' = 'local';
+  public dbType: 'pg' | 'mysql' | 'local' = 'local';
 
   private localData = {
     users: new Map<string, UserRow>(),
@@ -111,7 +111,31 @@ class DatabaseAdapter {
     gameResults: [] as GameResultRow[],
     feedbackWishes: [] as FeedbackWishRow[],
   };
-  private localFilePath = path.resolve(process.cwd(), 'data_local.json');
+  private localFilePath: string = '';
+
+  constructor() {
+    this.localFilePath = this.resolveLocalFilePath();
+  }
+
+  private resolveLocalFilePath(): string {
+    const dataDir = path.resolve(process.cwd(), 'data');
+    if (!fs.existsSync(dataDir)) {
+      try {
+        fs.mkdirSync(dataDir, { recursive: true });
+      } catch {}
+    }
+    const dataSubPath = path.resolve(dataDir, 'data_local.json');
+    const rootPath = path.resolve(process.cwd(), 'data_local.json');
+
+    // If root data_local.json exists but data/data_local.json does not, migrate it over
+    if (fs.existsSync(rootPath) && !fs.existsSync(dataSubPath)) {
+      try {
+        fs.copyFileSync(rootPath, dataSubPath);
+      } catch {}
+    }
+
+    return fs.existsSync(dataDir) ? dataSubPath : rootPath;
+  }
 
   async init(): Promise<void> {
     const dbUrl = config.databaseUrl.trim();
@@ -129,7 +153,7 @@ class DatabaseAdapter {
 
         // Test connection
         const conn = await this.mysqlPool.getConnection();
-        console.log('Connected to MySQL successfully.');
+        console.log('✅ [DATABASE] ĐÃ KẾT NỐI THÀNH CÔNG MYSQL (aaPanel)! Dữ liệu được lưu an toàn trong MySQL.');
         this.dbType = 'mysql';
 
         // Apply MySQL schema migrations
@@ -178,7 +202,12 @@ class DatabaseAdapter {
         conn.release();
         return;
       } catch (err: any) {
-        console.warn('MySQL connection failed:', err.message, '- Falling back to local embedded database.');
+        console.error('================================================================');
+        console.error('⚠️ [CẢNH BÁO DATABASE] KẾT NỐI MYSQL THẤT BẠI:');
+        console.error(`Chi tiết lỗi: ${err.message}`);
+        console.error('👉 Nếu bạn dùng aaPanel, hãy vào: aaPanel -> Databases -> Bấm "Permission" của database -> Đổi từ "Local server" thành "Everyone" để Docker container có quyền kết nối!');
+        console.error(`👉 Ứng dụng tạm thời lưu trữ dữ liệu vào thư mục: ${this.localFilePath}`);
+        console.error('================================================================');
         this.dbType = 'local';
       }
     }
