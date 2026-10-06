@@ -15,6 +15,8 @@ interface PlayerSeatViewProps {
     isOwner?: boolean | null;
     scoreText?: string;
     balance?: number;
+    remainingHand?: any[];
+    scoreDeltaBadge?: number;
   } | null;
   seatIndex: number;
   turnDeadline?: number;
@@ -214,6 +216,21 @@ export const PlayerSeatView: React.FC<PlayerSeatViewProps> = ({
               {timeLeft}
             </div>
           )}
+
+          {/* Victory / Defeat Score Delta Bubble (Matching Image 1!) */}
+          {player.scoreDeltaBadge !== undefined && (
+            <div
+              className={`absolute -top-3.5 left-1/2 -translate-x-1/2 z-40 px-2 sm:px-2.5 py-0.5 rounded-full font-black text-[10px] sm:text-xs shadow-2xl border flex items-center gap-0.5 whitespace-nowrap animate-bounce drop-shadow-md ${
+                player.scoreDeltaBadge > 0
+                  ? 'bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600 text-white border-green-200 ring-2 ring-emerald-400 shadow-[0_0_15px_rgba(34,197,94,0.8)]'
+                  : player.scoreDeltaBadge < 0
+                  ? 'bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-yellow-200 border-red-300 ring-2 ring-red-400 shadow-[0_0_15px_rgba(239,68,68,0.8)]'
+                  : 'bg-slate-800 text-slate-300 border-slate-600'
+              }`}
+            >
+              {player.scoreDeltaBadge > 0 ? `+${player.scoreDeltaBadge.toLocaleString()}$` : `${player.scoreDeltaBadge.toLocaleString()}$`}
+            </div>
+          )}
         </div>
 
         {/* Name pill */}
@@ -241,7 +258,7 @@ export const PlayerSeatView: React.FC<PlayerSeatViewProps> = ({
         </div>
 
         {/* Score / Chips or Card Count badge under name */}
-        {position !== 'bottom' && player.cardCount > 0 && !isLobby ? (
+        {position !== 'bottom' && player.cardCount > 0 && !isLobby && !player.remainingHand ? (
           <div className="mt-0.5 bg-gradient-to-r from-amber-500/30 to-amber-600/30 border border-amber-400/80 rounded-full px-2 py-0.5 flex items-center justify-center shadow-md">
             <span className="text-[11px] sm:text-xs font-black text-amber-300 font-display">
               {player.cardCount} lá
@@ -270,11 +287,22 @@ export const PlayerSeatView: React.FC<PlayerSeatViewProps> = ({
         )}
       </div>
 
-      {/* Blue Card Back with count badge (Matching Image 2!) */}
-      {position !== 'bottom' && player.cardCount > 0 && !isLobby && (
-        <div className="relative shrink-0">
-          <CardView isBack backCount={player.cardCount} size="sm" />
+      {/* Face-up Remaining Cards on Game End (Matching Image 1!) */}
+      {player.remainingHand && player.remainingHand.length > 0 && !isLobby ? (
+        <div className="flex items-center -space-x-3.5 sm:-space-x-4 bg-black/60 p-1 sm:p-1.5 rounded-xl border border-amber-500/40 shadow-2xl shrink-0 z-30 animate-fade-in max-w-[180px] sm:max-w-[260px] overflow-x-auto">
+          {player.remainingHand.map((card, idx) => (
+            <div key={card.id || idx} className="hover:-translate-y-1.5 transition-transform shrink-0">
+              <CardView card={card} size="xs" />
+            </div>
+          ))}
         </div>
+      ) : (
+        /* Blue Card Back with count badge (Matching Image 2!) */
+        position !== 'bottom' && player.cardCount > 0 && !isLobby && (
+          <div className="relative shrink-0">
+            <CardView isBack backCount={player.cardCount} size="sm" />
+          </div>
+        )
       )}
 
       {/* Badges: BỎ LƯỢT / ĐÚT 3♠ / SẴN SÀNG */}

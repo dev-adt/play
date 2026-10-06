@@ -261,7 +261,7 @@ export class Room {
     return { success: true };
   }
 
-  public scheduleAutoStartNextGame(delayMs: number = 3000): void {
+  public scheduleAutoStartNextGame(delayMs: number = 5000): void {
     this.clearAutoStartNextGame();
     this.nextGameAutoStartTime = Date.now() + delayMs;
 
@@ -339,7 +339,7 @@ export class Room {
               }).catch(() => {});
             }
           }
-          this.scheduleAutoStartNextGame(3000);
+          this.scheduleAutoStartNextGame(5000);
         }
         this.broadcast();
       },
@@ -406,7 +406,7 @@ export class Room {
               }).catch(() => {});
             }
           }
-          this.scheduleAutoStartNextGame(3000);
+          this.scheduleAutoStartNextGame(5000);
         }
         this.broadcast();
       },

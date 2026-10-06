@@ -7,7 +7,7 @@ interface CardViewProps {
   backCount?: number; // Count shown in center of back card (like in Image 2!)
   isSelected?: boolean;
   onClick?: () => void;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'mini' | 'sm' | 'md' | 'lg';
   className?: string;
 }
 
@@ -28,7 +28,12 @@ export const CardView: React.FC<CardViewProps> = ({
   let fontSize = '1.3rem';
   let suitSize = '1.1rem';
 
-  if (size === 'sm') {
+  if (size === 'xs' || size === 'mini') {
+    width = isMobile ? 24 : 30;
+    height = isMobile ? 36 : 45;
+    fontSize = isMobile ? '0.62rem' : '0.75rem';
+    suitSize = isMobile ? '0.52rem' : '0.62rem';
+  } else if (size === 'sm') {
     width = isMobile ? 40 : 46;
     height = isMobile ? 58 : 66;
     fontSize = isMobile ? '0.8rem' : '0.9rem';

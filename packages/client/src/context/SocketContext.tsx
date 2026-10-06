@@ -49,6 +49,7 @@ export interface RoomClientView {
       hasPassed: boolean;
       isOnline: boolean;
       isCurrentTurn: boolean;
+      remainingHand?: any[];
     }[];
     recentPlays: any[];
     chopNotices: { text: string; createdAt: number }[];

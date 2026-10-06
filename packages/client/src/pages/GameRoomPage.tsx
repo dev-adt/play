@@ -79,6 +79,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
 
   // Dealing & Auto-sort states
   const [isDealing, setIsDealing] = useState(false);
+  const [dealtHandCount, setDealtHandCount] = useState<number>(13);
   const [isSortingHand, setIsSortingHand] = useState(false);
   const [lastDealtGameId, setLastDealtGameId] = useState<string | null>(null);
 
@@ -140,17 +141,24 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
   // Trigger dealing animation when new round/game starts
   useEffect(() => {
     const currentGameId = roomState?.gameState?.gameId;
-    const isPlaying = roomState?.isGameActive && roomState?.gameState?.phase === 'playing';
+    const gsPhase = roomState?.gameState?.phase;
+    const isPlayingOrDealing = roomState?.isGameActive && (gsPhase === 'dealing' || gsPhase === 'playing');
 
-    if (isPlaying && currentGameId && currentGameId !== lastDealtGameId) {
+    if (isPlayingOrDealing && currentGameId && currentGameId !== lastDealtGameId) {
       setLastDealtGameId(currentGameId);
       setIsDealing(true);
+      setDealtHandCount(0);
       setSelectedCardIds([]);
     }
   }, [roomState?.isGameActive, roomState?.gameState?.gameId, roomState?.gameState?.phase, lastDealtGameId]);
 
+  const handleCardReceivedBottom = () => {
+    setDealtHandCount(prev => Math.min(myHand.length, prev + 1));
+  };
+
   const handleDealingComplete = () => {
     setIsDealing(false);
+    setDealtHandCount(myHand.length);
     // Auto sort cards once for easy viewing and playing!
     setSortBySuit(false);
     setIsSortingHand(true);
@@ -298,11 +306,17 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
     const mem = seatedMembers[seatIdx];
     if (isGameActive) {
       const gp = allGamePlayers.find(p => p.seatIndex === seatIdx);
+      const pr = gameState?.result?.playerResults?.find((r: any) => r.seatIndex === seatIdx);
+      const scoreDelta = pr ? (pr.moneyDelta !== undefined ? pr.moneyDelta : pr.scoreDelta * (roomState.betAmount || 10)) : undefined;
+      const remainingHand = gp?.remainingHand || pr?.remainingHand;
+
       if (gp) {
         return {
           ...gp,
           balance: gp.balance ?? mem?.balance ?? 1000,
           isOwner: gp.id === roomState.ownerId,
+          remainingHand,
+          scoreDeltaBadge: scoreDelta,
         };
       }
       if (mem) {
@@ -318,6 +332,8 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
           isOwner: mem.userId === roomState.ownerId,
           scoreText: 'Chờ ván sau',
           balance: mem.balance ?? 1000,
+          remainingHand,
+          scoreDeltaBadge: scoreDelta,
         };
       }
       return null;
@@ -340,8 +356,19 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
   const topPlayer = topSeatIdx !== -1 ? getPlayerAtSeat(topSeatIdx) : null;
   const leftPlayer = leftSeatIdx !== -1 ? getPlayerAtSeat(leftSeatIdx) : null;
   const rightPlayer = rightSeatIdx !== -1 ? getPlayerAtSeat(rightSeatIdx) : null;
+
+  const myResult = gameState?.result?.playerResults?.find((r: any) => r.seatIndex === mySeat);
+  const myScoreDelta = myResult ? (myResult.moneyDelta !== undefined ? myResult.moneyDelta : myResult.scoreDelta * (roomState.betAmount || 10)) : undefined;
+  const myRemainingHand = myGamePlayer?.remainingHand || myResult?.remainingHand;
+
   const bottomPlayer = isGameActive
-    ? (myGamePlayer ? { ...myGamePlayer, balance: myGamePlayer.balance ?? myMember?.balance ?? user?.balance ?? 1000, isOwner: !!isOwner } : (myMember ? {
+    ? (myGamePlayer ? {
+        ...myGamePlayer,
+        balance: myGamePlayer.balance ?? myMember?.balance ?? user?.balance ?? 1000,
+        isOwner: !!isOwner,
+        remainingHand: myRemainingHand,
+        scoreDeltaBadge: myScoreDelta,
+      } : (myMember ? {
         id: myMember.userId,
         displayName: myMember.displayName,
         seatIndex: myMember.seatIndex,
@@ -353,6 +380,8 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
         isOwner: !!isOwner,
         scoreText: 'Ghế chờ ván sau',
         balance: myMember.balance ?? user?.balance ?? 1000,
+        remainingHand: myRemainingHand,
+        scoreDeltaBadge: myScoreDelta,
       } : null))
     : myMember
     ? {
@@ -744,6 +773,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
                     )
                   : ['bottom']
               }
+              onCardReceivedBottom={handleCardReceivedBottom}
               onComplete={handleDealingComplete}
             />
           )}
@@ -852,7 +882,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
         )}
 
         {/* In-Game Action Bar: only show if user is actively playing cards in this round */}
-        {isGameActive && gameState && myGamePlayer && (
+        {isGameActive && gameState && myGamePlayer && !isDealing && gameState.phase === 'playing' && (
           <ActionBar
             hand={myHand}
             selectedCardIds={selectedCardIds}
@@ -870,7 +900,7 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
         {isGameActive && myGamePlayer && (
           <div className="w-full max-w-4xl flex items-center justify-center relative px-1 sm:px-2">
             <HandView
-              hand={myHand}
+              hand={isDealing ? myHand.slice(0, dealtHandCount) : myHand}
               selectedCardIds={selectedCardIds}
               onToggleSelect={handleToggleSelect}
               isThrowing={isThrowingCards}

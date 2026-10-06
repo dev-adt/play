@@ -88,6 +88,7 @@ export interface ScoreLedgerEntry {
 
 export interface PlayerGameResult {
   playerId: string;
+  displayName?: string;
   seatIndex: number;
   isWinner: boolean;
   scoreDelta: number; // For Basic: signed int. For Góp quỹ: negative int (0 or negative)
@@ -96,4 +97,5 @@ export interface PlayerGameResult {
   chopScoreDelta: number;
   settlementScoreDelta: number;
   moneyDelta?: number;
+  remainingHand?: Card[];
 }

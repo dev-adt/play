@@ -283,27 +283,90 @@ html, body {
   pointer-events: none;
 }
 
-/* Card Dealing Fly Animation from Center Deck to Player Positions */
-@keyframes cardDealFly {
+/* Card Dealing Fly Animations from Center Deck to Player Positions */
+@keyframes cardDealToBottom {
   0% {
-    transform: translate(0, 0) scale(0.95) rotate(0deg);
+    transform: translate(0, 0) scale(0.6) rotate(0deg);
     opacity: 0;
   }
-  15% {
+  20% {
     opacity: 1;
-    filter: drop-shadow(0 15px 20px rgba(0, 0, 0, 0.8));
+    filter: drop-shadow(0 15px 25px rgba(0, 0, 0, 0.9));
   }
   85% {
     opacity: 1;
   }
   100% {
+    transform: translate(0, 220px) scale(0.95) rotate(var(--target-rot, 0deg));
     opacity: 0;
-    filter: drop-shadow(0 5px 8px rgba(0, 0, 0, 0.4));
   }
 }
 
-.animate-card-deal-fly {
-  animation: cardDealFly 0.48s cubic-bezier(0.16, 1, 0.3, 1) both;
+@keyframes cardDealToTop {
+  0% {
+    transform: translate(0, 0) scale(0.6) rotate(0deg);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+    filter: drop-shadow(0 15px 25px rgba(0, 0, 0, 0.9));
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(0, -190px) scale(0.7) rotate(var(--target-rot, 0deg));
+    opacity: 0;
+  }
+}
+
+@keyframes cardDealToLeft {
+  0% {
+    transform: translate(0, 0) scale(0.6) rotate(0deg);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+    filter: drop-shadow(0 15px 25px rgba(0, 0, 0, 0.9));
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-250px, 0) scale(0.7) rotate(var(--target-rot, 0deg));
+    opacity: 0;
+  }
+}
+
+@keyframes cardDealToRight {
+  0% {
+    transform: translate(0, 0) scale(0.6) rotate(0deg);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+    filter: drop-shadow(0 15px 25px rgba(0, 0, 0, 0.9));
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(250px, 0) scale(0.7) rotate(var(--target-rot, 0deg));
+    opacity: 0;
+  }
+}
+
+.deal-fly-bottom {
+  animation: cardDealToBottom 0.35s cubic-bezier(0.18, 0.89, 0.32, 1.05) both;
+}
+.deal-fly-top {
+  animation: cardDealToTop 0.35s cubic-bezier(0.18, 0.89, 0.32, 1.05) both;
+}
+.deal-fly-left {
+  animation: cardDealToLeft 0.35s cubic-bezier(0.18, 0.89, 0.32, 1.05) both;
+}
+.deal-fly-right {
+  animation: cardDealToRight 0.35s cubic-bezier(0.18, 0.89, 0.32, 1.05) both;
 }
 
 /* Card Auto-Sort Wave / Splay Animation */

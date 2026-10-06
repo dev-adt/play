@@ -10,11 +10,13 @@ interface FlyingCard {
 
 interface DealingDeckAnimationProps {
   playerPositions: ('bottom' | 'top' | 'left' | 'right')[];
+  onCardReceivedBottom?: (cardIndex: number) => void;
   onComplete: () => void;
 }
 
 export const DealingDeckAnimation: React.FC<DealingDeckAnimationProps> = ({
   playerPositions,
+  onCardReceivedBottom,
   onComplete,
 }) => {
   const [flyingCards, setFlyingCards] = useState<FlyingCard[]>([]);
@@ -24,11 +26,13 @@ export const DealingDeckAnimation: React.FC<DealingDeckAnimationProps> = ({
   useEffect(() => {
     sounds.playDeal();
 
-    // Generate dealing card sequence: 4 rounds of cards dealt to all active positions
+    // 13 dealing rounds (each active player receives 1 card per round, total 13 cards each)
     const cards: FlyingCard[] = [];
-    const totalRounds = 4; // 4 visual dealing bursts per active player for fast & punchy excitement
+    const totalRounds = 13;
     let cardId = 0;
-    const intervalMs = 65; // ms between each dealt card
+
+    // Fast, crisp interval based on player count (total duration ~2.2s - 2.8s)
+    const intervalMs = playerPositions.length === 2 ? 75 : playerPositions.length === 3 ? 55 : 44;
 
     for (let r = 0; r < totalRounds; r++) {
       for (const pos of playerPositions) {
@@ -36,28 +40,37 @@ export const DealingDeckAnimation: React.FC<DealingDeckAnimationProps> = ({
           id: cardId++,
           targetPosition: pos,
           delayMs: cardId * intervalMs,
-          rotation: (Math.random() - 0.5) * 40,
+          rotation: (Math.random() - 0.5) * 35,
         });
       }
     }
 
     setFlyingCards(cards);
 
-    // Schedule sound clicks during dealing
+    // Schedule sound effects and card delivery callbacks
     const timers: NodeJS.Timeout[] = [];
     cards.forEach((c) => {
-      const t = setTimeout(() => {
+      // Sound effect when card flies off deck
+      const startTimer = setTimeout(() => {
         sounds.playCardSlide();
         setDeckCount((prev) => Math.max(0, prev - 1));
       }, c.delayMs);
-      timers.push(t);
+      timers.push(startTimer);
+
+      // Card arrival callback for bottom player
+      if (c.targetPosition === 'bottom' && onCardReceivedBottom) {
+        const arrivalTimer = setTimeout(() => {
+          onCardReceivedBottom(c.id);
+        }, c.delayMs + 260);
+        timers.push(arrivalTimer);
+      }
     });
 
-    const totalDuration = cards.length * intervalMs + 450;
+    const totalDuration = cards.length * intervalMs + 380;
 
     const finishTimer = setTimeout(() => {
       setIsFinishing(true);
-    }, totalDuration - 200);
+    }, totalDuration - 220);
 
     const completeTimer = setTimeout(() => {
       onComplete();
@@ -70,16 +83,16 @@ export const DealingDeckAnimation: React.FC<DealingDeckAnimationProps> = ({
     };
   }, []);
 
-  const getTargetCoordinates = (pos: 'bottom' | 'top' | 'left' | 'right') => {
+  const getFlyClass = (pos: 'bottom' | 'top' | 'left' | 'right') => {
     switch (pos) {
       case 'bottom':
-        return 'translate-y-[180px] sm:translate-y-[220px] md:translate-y-[260px] translate-x-0 scale-95';
+        return 'deal-fly-bottom';
       case 'top':
-        return '-translate-y-[160px] sm:-translate-y-[190px] md:-translate-y-[220px] translate-x-0 scale-75';
+        return 'deal-fly-top';
       case 'left':
-        return '-translate-x-[150px] sm:-translate-x-[240px] md:-translate-x-[320px] translate-y-0 scale-75';
+        return 'deal-fly-left';
       case 'right':
-        return 'translate-x-[150px] sm:translate-x-[240px] md:translate-x-[320px] translate-y-0 scale-75';
+        return 'deal-fly-right';
     }
   };
 
@@ -125,7 +138,7 @@ export const DealingDeckAnimation: React.FC<DealingDeckAnimationProps> = ({
 
         {/* Flying cards animated out towards players */}
         {flyingCards.map((c) => {
-          const targetClass = getTargetCoordinates(c.targetPosition);
+          const flyClass = getFlyClass(c.targetPosition);
           return (
             <div
               key={c.id}
@@ -133,10 +146,10 @@ export const DealingDeckAnimation: React.FC<DealingDeckAnimationProps> = ({
                 animationDelay: `${c.delayMs}ms`,
                 ['--target-rot' as any]: `${c.rotation}deg`,
               }}
-              className={`absolute w-14 h-20 sm:w-16 sm:h-24 rounded-xl border border-amber-400/70 bg-gradient-to-br from-[#8b0000] to-[#3a0000] shadow-xl p-0.5 pointer-events-none opacity-0 animate-card-deal-fly ${targetClass}`}
+              className={`absolute w-12 h-16 sm:w-16 sm:h-22 rounded-xl border border-amber-300/80 bg-gradient-to-br from-[#8b0000] via-[#5a0000] to-[#2a0000] shadow-2xl p-0.5 pointer-events-none opacity-0 ${flyClass}`}
             >
-              <div className="w-full h-full rounded-lg border border-dashed border-amber-300/40 bg-black/30 flex items-center justify-center">
-                <span className="text-amber-300/80 text-[10px] font-serif">♠</span>
+              <div className="w-full h-full rounded-lg border border-dashed border-amber-300/50 bg-black/30 flex items-center justify-center shadow-inner">
+                <span className="text-amber-300/90 text-xs font-serif font-black">♠</span>
               </div>
             </div>
           );
@@ -150,7 +163,7 @@ export const DealingDeckAnimation: React.FC<DealingDeckAnimationProps> = ({
         }`}
       >
         <span className="text-yellow-400">🎴</span>
-        <span>ĐANG PHÁT BÀI NGẪU NHIÊN...</span>
+        <span>ĐANG PHÁT BÀI TỪNG LÁ...</span>
       </div>
     </div>
   );

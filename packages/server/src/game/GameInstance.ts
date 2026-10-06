@@ -70,6 +70,7 @@ export interface GameStateClientView {
     hasPassed: boolean;
     isOnline: boolean;
     isCurrentTurn: boolean;
+    remainingHand?: Card[];
   }[];
   recentPlays: PublicTablePlay[];
   chopNotices: { text: string; createdAt: number }[];
@@ -112,6 +113,7 @@ export class GameInstance {
   };
 
   private timerHandle: NodeJS.Timeout | null = null;
+  private dealingTimer: NodeJS.Timeout | null = null;
   private config: RulesConfig = defaultRulesConfig;
   private onStateChange: () => void;
   public onAutoKickOfflinePlayer?: (playerId: string, reason: string) => void;
@@ -205,10 +207,25 @@ export class GameInstance {
       this.currentTurnIndex = lowestPlayerIdx;
     }
 
-    this.phase = 'playing';
+    // Start in 'dealing' phase so client can run the card dealing animation
+    this.phase = 'dealing';
+    this.turnDeadline = 0;
     this.stateVersion++;
-    this.resetTurnTimer();
     this.onStateChange();
+
+    // Duration of dealing animation (2.2s - 3.2s based on players count)
+    const dealingDurationMs = Math.min(3200, Math.max(2200, this.players.length * 650));
+    if (this.dealingTimer) {
+      clearTimeout(this.dealingTimer);
+    }
+    this.dealingTimer = setTimeout(() => {
+      this.dealingTimer = null;
+      if (this.phase !== 'dealing') return;
+      this.phase = 'playing';
+      this.stateVersion++;
+      this.resetTurnTimer();
+      this.onStateChange();
+    }, dealingDurationMs);
   }
 
   private resetTurnTimer(): void {
@@ -528,6 +545,10 @@ export class GameInstance {
       clearTimeout(this.timerHandle);
       this.timerHandle = null;
     }
+    if (this.dealingTimer) {
+      clearTimeout(this.dealingTimer);
+      this.dealingTimer = null;
+    }
 
     this.phase = 'ended';
 
@@ -559,7 +580,14 @@ export class GameInstance {
       endReason: options.endReason,
       endReasonText: options.endReasonText,
       winners: options.winnerIds,
-      playerResults: settlement.results,
+      playerResults: settlement.results.map(r => {
+        const p = this.players.find(pl => pl.id === r.playerId);
+        return {
+          ...r,
+          displayName: p ? p.displayName : '',
+          remainingHand: p ? sortCards(p.hand) : [],
+        };
+      }),
       ledger: [...this.priorChopEntries, ...settlement.ledger],
     };
 
@@ -642,6 +670,7 @@ export class GameInstance {
         hasPassed: p.hasPassed,
         isOnline: p.isOnline,
         isCurrentTurn: p.id === (currentP ? currentP.id : null),
+        remainingHand: this.phase === 'ended' ? sortCards(p.hand) : undefined,
       })),
       recentPlays: this.recentPlays.slice(-6),
       chopNotices: this.chopNotices.slice(-5),
