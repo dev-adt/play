@@ -86,6 +86,10 @@ export class Room {
     this.seats = Array(options.maxPlayers).fill(null);
   }
 
+  public get members(): RoomMember[] {
+    return this.seats.filter((s): s is RoomMember => s !== null);
+  }
+
   public getMemberByUserId(userId: string): RoomMember | null {
     return this.seats.find(s => s && s.userId === userId) || null;
   }

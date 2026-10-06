@@ -23,11 +23,16 @@ import {
   Sparkles,
   Trophy,
   MessageSquare,
+  Mic,
+  MicOff,
+  Headphones,
+  AlertOctagon,
 } from 'lucide-react';
 import { RulesModal } from '../components/RulesModal';
 import { HistoryModal } from '../components/HistoryModal';
 import { RoomChatModal } from '../components/RoomChatModal';
 import { PlayerInfoModal } from '../components/PlayerInfoModal';
+import { useVoiceChat } from '../context/VoiceChatContext';
 
 interface GameRoomPageProps {
   roomCode: string;
@@ -35,6 +40,17 @@ interface GameRoomPageProps {
 
 export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
   const { user } = useAuth();
+  const {
+    isMicOn,
+    isDeafened,
+    isSpeaking,
+    permissionError,
+    voicePeers,
+    toggleMic,
+    toggleDeafen,
+    toggleMutePeer,
+    clearPermissionError,
+  } = useVoiceChat();
   const {
     roomState,
     roomChats,
@@ -432,8 +448,49 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
           </div>
         </div>
 
-        {/* Top Right: Chat, Sound & Share Invite */}
+        {/* Top Right: Chat, Voice Mic, Sound & Share Invite */}
         <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Voice Chat Microphone Button */}
+          <button
+            onClick={toggleMic}
+            className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full border flex items-center justify-center transition cursor-pointer relative ${
+              isMicOn
+                ? isSpeaking
+                  ? 'bg-emerald-500 border-emerald-300 text-slate-950 ring-4 ring-emerald-400/80 shadow-[0_0_15px_rgba(52,211,153,0.8)] scale-105'
+                  : 'bg-emerald-700/90 border-emerald-400 text-emerald-200 shadow'
+                : 'bg-black/60 border-slate-700 hover:border-amber-400 text-slate-400'
+            }`}
+            title={
+              isMicOn
+                ? isSpeaking
+                  ? 'Đang nói... (Bấm để tắt Mic)'
+                  : 'Micro đang bật (Bấm để tắt Mic)'
+                : 'Bật đàm thoại trực tiếp (Voice Chat Mic)'
+            }
+          >
+            {isMicOn ? (
+              <Mic size={15} className={isSpeaking ? 'animate-bounce text-slate-950 font-black' : 'text-emerald-300'} />
+            ) : (
+              <MicOff size={15} className="text-red-400" />
+            )}
+            {isMicOn && (
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+            )}
+          </button>
+
+          {/* Voice Chat Deafen / Mute Room Button */}
+          <button
+            onClick={toggleDeafen}
+            className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full border flex items-center justify-center transition cursor-pointer ${
+              isDeafened
+                ? 'bg-red-900/90 border-red-500 text-red-200 shadow'
+                : 'bg-black/60 border-slate-700 hover:border-amber-400 text-white'
+            }`}
+            title={isDeafened ? 'Đang tắt nghe cả phòng (Bấm để bật lại)' : 'Tắt tiếng phòng chơi (Deafen)'}
+          >
+            {isDeafened ? <VolumeX size={15} /> : <Headphones size={15} className="text-slate-300" />}
+          </button>
+
           {/* Chat button with unread badge */}
           <button
             onClick={handleOpenChat}
@@ -468,6 +525,20 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
         </div>
       </div>
 
+      {/* Mic Permission Warning Banner */}
+      {permissionError && (
+        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-50 bg-red-950/95 border-2 border-red-500 text-red-100 px-4 py-2 rounded-2xl text-xs max-w-md shadow-2xl flex items-center gap-2 animate-bounce">
+          <AlertOctagon size={18} className="text-red-400 shrink-0" />
+          <span className="flex-1 font-medium">{permissionError}</span>
+          <button
+            onClick={clearPermissionError}
+            className="p-1 rounded-full hover:bg-white/10 text-slate-300 cursor-pointer"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       {/* 2. THE STADIUM / OVAL CASINO TABLE (Holds Top, Left, Right Opponents & Center Table) */}
       <div className="flex-1 min-h-0 w-full max-w-5xl mx-auto flex items-center justify-center relative p-0.5 sm:p-1 md:p-3 my-auto">
         <div className="stadium-table w-full h-full min-h-[190px] max-h-[46vh] md:max-h-[55vh] relative flex items-center justify-center">
@@ -486,7 +557,11 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
                 canKick={!!isOwner && topPlayer !== null && topPlayer.id !== user?.userId}
                 onKick={kickPlayer}
                 chatBubbleText={topPlayer ? chatBubbles[topPlayer.id]?.text : null}
-                onInspectPlayer={(id, name) => setInspectPlayer({ id, displayName: name })}
+                onInspectPlayer={(id, name) => setInspectPlayer({ id, displayName: name, seatIndex: topSeatIdx })}
+                isVoiceActive={topPlayer ? (topPlayer.id === user?.userId ? isMicOn : !!voicePeers[topPlayer.id]?.isMicOn) : false}
+                isSpeaking={topPlayer ? (topPlayer.id === user?.userId ? isSpeaking : !!voicePeers[topPlayer.id]?.isSpeaking) : false}
+                isMutedByMe={topPlayer ? !!voicePeers[topPlayer.id]?.isMutedByMe : false}
+                onToggleMutePeer={topPlayer && topPlayer.id !== user?.userId ? () => toggleMutePeer(topPlayer.id) : undefined}
               />
             </div>
           )}
@@ -506,7 +581,11 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
                 canKick={!!isOwner && leftPlayer !== null && leftPlayer.id !== user?.userId}
                 onKick={kickPlayer}
                 chatBubbleText={leftPlayer ? chatBubbles[leftPlayer.id]?.text : null}
-                onInspectPlayer={(id, name) => setInspectPlayer({ id, displayName: name })}
+                onInspectPlayer={(id, name) => setInspectPlayer({ id, displayName: name, seatIndex: leftSeatIdx })}
+                isVoiceActive={leftPlayer ? (leftPlayer.id === user?.userId ? isMicOn : !!voicePeers[leftPlayer.id]?.isMicOn) : false}
+                isSpeaking={leftPlayer ? (leftPlayer.id === user?.userId ? isSpeaking : !!voicePeers[leftPlayer.id]?.isSpeaking) : false}
+                isMutedByMe={leftPlayer ? !!voicePeers[leftPlayer.id]?.isMutedByMe : false}
+                onToggleMutePeer={leftPlayer && leftPlayer.id !== user?.userId ? () => toggleMutePeer(leftPlayer.id) : undefined}
               />
             </div>
           )}
@@ -564,7 +643,11 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
                 canKick={!!isOwner && rightPlayer !== null && rightPlayer.id !== user?.userId}
                 onKick={kickPlayer}
                 chatBubbleText={rightPlayer ? chatBubbles[rightPlayer.id]?.text : null}
-                onInspectPlayer={(id, name) => setInspectPlayer({ id, displayName: name })}
+                onInspectPlayer={(id, name) => setInspectPlayer({ id, displayName: name, seatIndex: rightSeatIdx })}
+                isVoiceActive={rightPlayer ? (rightPlayer.id === user?.userId ? isMicOn : !!voicePeers[rightPlayer.id]?.isMicOn) : false}
+                isSpeaking={rightPlayer ? (rightPlayer.id === user?.userId ? isSpeaking : !!voicePeers[rightPlayer.id]?.isSpeaking) : false}
+                isMutedByMe={rightPlayer ? !!voicePeers[rightPlayer.id]?.isMutedByMe : false}
+                onToggleMutePeer={rightPlayer && rightPlayer.id !== user?.userId ? () => toggleMutePeer(rightPlayer.id) : undefined}
               />
             </div>
           )}
@@ -585,7 +668,10 @@ export const GameRoomPage: React.FC<GameRoomPageProps> = ({ roomCode }) => {
             isLobby={!isGameActive}
             onTakeSeat={takeSeat}
             chatBubbleText={bottomPlayer ? chatBubbles[bottomPlayer.id]?.text : null}
-            onInspectPlayer={(id, name) => setInspectPlayer({ id, displayName: name })}
+            onInspectPlayer={(id, name) => setInspectPlayer({ id, displayName: name, seatIndex: bottomSeatIdx })}
+            isVoiceActive={isMicOn}
+            isSpeaking={isSpeaking}
+            isMutedByMe={false}
           />
         </div>
 

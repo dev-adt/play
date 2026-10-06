@@ -221,10 +221,75 @@ export function setupSocketServer(io: Server) {
       }
     });
 
+    // ==========================================
+    // VOICE CHAT SIGNALING EVENTS (WebRTC P2P)
+    // ==========================================
+    socket.on('voice_join', async (data: { roomCode: string }, callback?: (res: any) => void) => {
+      const room = await roomManager.getOrLoadRoomByCode(data.roomCode);
+      if (!room) {
+        if (callback) callback({ success: false, error: 'Phòng không tồn tại' });
+        return;
+      }
+      const roomChannel = `room:${room.code}`;
+      const activePeers: { userId: string; socketId: string; displayName: string }[] = [];
+      for (const m of room.members) {
+        if (m.userId !== user.userId && m.isOnline && m.socketId) {
+          activePeers.push({
+            userId: m.userId,
+            socketId: m.socketId,
+            displayName: m.displayName,
+          });
+        }
+      }
+
+      // Notify others in room
+      socket.to(roomChannel).emit('voice_peer_joined', {
+        userId: user.userId,
+        socketId: socket.id,
+        displayName: user.displayName,
+      });
+
+      if (callback) {
+        callback({ success: true, peers: activePeers });
+      }
+    });
+
+    socket.on('voice_signal', (data: { roomCode: string; targetSocketId: string; signal: any }) => {
+      if (!data.targetSocketId || !data.signal) return;
+      io.to(data.targetSocketId).emit('voice_signal', {
+        fromSocketId: socket.id,
+        fromUserId: user.userId,
+        signal: data.signal,
+      });
+    });
+
+    socket.on('voice_status', (data: { roomCode: string; isMicOn: boolean; isSpeaking: boolean; isDeafened: boolean }) => {
+      const roomChannel = `room:${data.roomCode}`;
+      socket.to(roomChannel).emit('voice_peer_status', {
+        userId: user.userId,
+        socketId: socket.id,
+        isMicOn: !!data.isMicOn,
+        isSpeaking: !!data.isSpeaking,
+        isDeafened: !!data.isDeafened,
+      });
+    });
+
+    socket.on('voice_leave', (data: { roomCode: string }) => {
+      const roomChannel = `room:${data.roomCode}`;
+      socket.to(roomChannel).emit('voice_peer_left', {
+        userId: user.userId,
+        socketId: socket.id,
+      });
+    });
+
     // Handle disconnect
     socket.on('disconnect', () => {
       const found = roomManager.findRoomBySocketId(socket.id);
       if (found) {
+        io.to(`room:${found.room.code}`).emit('voice_peer_left', {
+          userId: found.member.userId,
+          socketId: socket.id,
+        });
         found.room.handleDisconnect(found.member.userId, socket.id);
       }
     });

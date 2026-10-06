@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { CardView } from './CardView';
-import { ShieldAlert, WifiOff, Crown, UserX } from 'lucide-react';
+import { ShieldAlert, WifiOff, Crown, UserX, Mic, MicOff, VolumeX, Volume2 } from 'lucide-react';
 
 interface PlayerSeatViewProps {
   player?: {
@@ -27,6 +27,10 @@ interface PlayerSeatViewProps {
   onKick?: (userId: string) => void;
   chatBubbleText?: string | null;
   onInspectPlayer?: (playerId: string, displayName: string, seatIndex: number) => void;
+  isVoiceActive?: boolean;
+  isSpeaking?: boolean;
+  isMutedByMe?: boolean;
+  onToggleMutePeer?: () => void;
 }
 
 export const PlayerSeatView: React.FC<PlayerSeatViewProps> = ({
@@ -42,6 +46,10 @@ export const PlayerSeatView: React.FC<PlayerSeatViewProps> = ({
   onKick,
   chatBubbleText,
   onInspectPlayer,
+  isVoiceActive = false,
+  isSpeaking = false,
+  isMutedByMe = false,
+  onToggleMutePeer,
 }) => {
   const [timeLeft, setTimeLeft] = useState<number>(0);
 
@@ -121,7 +129,9 @@ export const PlayerSeatView: React.FC<PlayerSeatViewProps> = ({
         >
           <div
             className={`w-11 h-11 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-full border-2 p-0.5 overflow-hidden shadow-lg transition-all ${
-              player.isCurrentTurn
+              isSpeaking
+                ? 'border-emerald-400 ring-4 ring-emerald-400/80 shadow-[0_0_18px_rgba(52,211,153,0.9)] scale-105 animate-pulse'
+                : player.isCurrentTurn
                 ? 'border-amber-400 ring-4 ring-amber-400/50 scale-105'
                 : 'border-amber-500/60 bg-slate-900'
             }`}
@@ -131,8 +141,44 @@ export const PlayerSeatView: React.FC<PlayerSeatViewProps> = ({
             </div>
           </div>
 
+          {/* Voice Microphone status badge */}
+          <div
+            onClick={e => {
+              if (onToggleMutePeer) {
+                e.stopPropagation();
+                onToggleMutePeer();
+              }
+            }}
+            className={`absolute -bottom-1 -left-1 rounded-full p-1 border shadow transition z-20 ${
+              isMutedByMe
+                ? 'bg-red-800 border-red-400 text-white cursor-pointer'
+                : isSpeaking
+                ? 'bg-emerald-500 border-emerald-300 text-slate-950 animate-bounce'
+                : isVoiceActive
+                ? 'bg-emerald-950/90 border-emerald-400 text-emerald-300'
+                : 'bg-black/80 border-slate-700 text-slate-500'
+            }`}
+            title={
+              isMutedByMe
+                ? 'Bạn đã tắt âm người này (Bấm để bật lại)'
+                : isSpeaking
+                ? 'Đang nói...'
+                : isVoiceActive
+                ? 'Micro đang bật'
+                : 'Micro đang tắt'
+            }
+          >
+            {isMutedByMe ? (
+              <VolumeX size={10} />
+            ) : isVoiceActive ? (
+              <Mic size={10} className={isSpeaking ? 'stroke-[3]' : ''} />
+            ) : (
+              <MicOff size={10} />
+            )}
+          </div>
+
           {!player.isOnline && (
-            <div className="absolute -bottom-1 -right-1 bg-red-600 rounded-full p-1 text-white shadow" title="Mất kết nối">
+            <div className="absolute -bottom-1 -right-1 bg-red-600 rounded-full p-1 text-white shadow z-20" title="Mất kết nối">
               <WifiOff size={11} />
             </div>
           )}
